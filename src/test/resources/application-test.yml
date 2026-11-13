@@ -1,0 +1,8 @@
+# Test profile: same roles, but against melocoton_test (DI-19).
+spring:
+  datasource:
+    url: ${TEST_DB_URL}
+  flyway:
+    url: ${TEST_DB_URL}
+    # Allowed only here: CleanTestDatabaseConfig wipes melocoton_test before migrating.
+    clean-disabled: false

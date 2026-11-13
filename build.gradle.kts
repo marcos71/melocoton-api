@@ -51,4 +51,6 @@ allOpen {
 
 tasks.withType<Test> {
 	useJUnitPlatform()
+	// Every test runs against melocoton_test (application-test.yml).
+	systemProperty("spring.profiles.active", "test")
 }

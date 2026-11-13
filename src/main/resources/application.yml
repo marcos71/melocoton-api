@@ -1,0 +1,37 @@
+spring:
+  application:
+    name: melocoton-api
+
+  # Local secrets live in .env (never committed). Real environment variables
+  # take precedence over it, so production only needs the variables (DI-19).
+  config:
+    import: optional:file:.env[.properties]
+
+  # The API runs every query as the application role (DI-05).
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_APP_USER}
+    password: ${DB_APP_PASSWORD}
+    hikari:
+      transaction-isolation: TRANSACTION_READ_COMMITTED
+      # Set on every new connection (plan, section 4, item 3). The time zone is forced
+      # because the JDBC driver would otherwise send the JVM's zone and override the
+      # database default, so SQL date logic would depend on the host machine (DI-14).
+      connection-init-sql: "SET lock_timeout = '3s'; SET statement_timeout = '5s'; SET TIME ZONE 'UTC'"
+
+  # Migrations run as the owner role, which can create and alter tables (DI-05).
+  flyway:
+    url: ${DB_URL}
+    user: ${DB_OWNER_USER}
+    password: ${DB_OWNER_PASSWORD}
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      # The schema is defined only by Flyway migrations; Hibernate just checks it.
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          # Timestamps are stored in UTC (DI-14).
+          time_zone: UTC
