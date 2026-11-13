@@ -1,0 +1,3 @@
+package archfixtures.appinfra.pieces.infrastructure.persistence
+
+class PieceJpaRepository

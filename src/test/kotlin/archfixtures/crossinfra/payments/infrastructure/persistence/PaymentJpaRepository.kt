@@ -1,0 +1,3 @@
+package archfixtures.crossinfra.payments.infrastructure.persistence
+
+class PaymentJpaRepository
