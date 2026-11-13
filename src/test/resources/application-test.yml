@@ -6,3 +6,8 @@ spring:
     url: ${TEST_DB_URL}
     # Allowed only here: CleanTestDatabaseConfig wipes melocoton_test before migrating.
     clean-disabled: false
+
+# Fixed here so tests do not depend on each developer's .env.
+melocoton:
+  cors:
+    allowed-origin: http://localhost:5173

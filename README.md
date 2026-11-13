@@ -24,4 +24,14 @@ Kotlin · Java 21 · Spring Boot 4 · Gradle (Kotlin DSL) · Spring Data JPA · 
 gradlew.bat bootRun     # start the API on http://localhost:8080
 gradlew.bat test        # run the tests (uses melocoton_test)
 gradlew.bat build       # compile, test and package
+gradlew.bat updateOpenApi   # regenerate openapi/openapi.json after changing the API
 ```
+
+With the API running:
+
+- Health check: http://localhost:8080/api/v1/health
+- Swagger UI: http://localhost:8080/swagger-ui.html
+
+## API contract
+
+`openapi/openapi.json` is the contract the PWA generates its types from. A test fails when it no longer matches the API; regenerate it with `gradlew.bat updateOpenApi`, review the diff and commit it.

@@ -28,6 +28,10 @@ dependencies {
 	implementation("org.flywaydb:flyway-database-postgresql")
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
 	implementation("tools.jackson.module:jackson-module-kotlin")
+	// OpenAPI contract and Swagger UI (DI-11)
+	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.2.0")
+	// springdoc reads Kotlin nullability through Jackson 2 to mark non-null fields as required
+	implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 	runtimeOnly("org.postgresql:postgresql")
 	testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
 	testImplementation("org.springframework.boot:spring-boot-starter-flyway-test")
@@ -53,4 +57,15 @@ tasks.withType<Test> {
 	useJUnitPlatform()
 	// Every test runs against melocoton_test (application-test.yml).
 	systemProperty("spring.profiles.active", "test")
+}
+
+// Regenerates openapi/openapi.json from the API (DI-11). Review the diff and commit it.
+tasks.register<Test>("updateOpenApi") {
+	description = "Regenerates openapi/openapi.json from the running API."
+	group = "documentation"
+	testClassesDirs = sourceSets.test.get().output.classesDirs
+	classpath = sourceSets.test.get().runtimeClasspath
+	systemProperty("openapi.update", "true")
+	filter { includeTestsMatching("*OpenApiContractTest") }
+	outputs.upToDateWhen { false }
 }

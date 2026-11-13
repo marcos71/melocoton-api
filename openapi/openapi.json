@@ -1,0 +1,82 @@
+{
+  "openapi" : "3.1.0",
+  "info" : {
+    "description" : "REST API for a ceramics workshop. Business errors use { \"error\": { \"code\", \"message\" } } with a Spanish message.",
+    "title" : "Melocotón API",
+    "version" : "v1"
+  },
+  "servers" : [ {
+    "url" : "http://localhost",
+    "description" : "Generated server url"
+  } ],
+  "paths" : {
+    "/api/v1/health" : {
+      "get" : {
+        "operationId" : "health",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description" : "Everything is up"
+          },
+          "503" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description" : "Something is down; the body says what"
+          }
+        },
+        "summary" : "Whether the API and its database are working",
+        "tags" : [ "Health" ]
+      }
+    }
+  },
+  "components" : {
+    "schemas" : {
+      "ErrorBody" : {
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "description" : "Stable identifier in English, for the client"
+          },
+          "message" : {
+            "type" : "string",
+            "description" : "Text for the person, in Spanish"
+          }
+        },
+        "required" : [ "code", "message" ]
+      },
+      "ErrorResponse" : {
+        "properties" : {
+          "error" : {
+            "$ref" : "#/components/schemas/ErrorBody"
+          }
+        },
+        "required" : [ "error" ]
+      },
+      "HealthResponse" : {
+        "type" : "object",
+        "properties" : {
+          "database" : {
+            "type" : "string",
+            "enum" : [ "UP", "DOWN" ]
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "UP", "DOWN" ]
+          }
+        },
+        "required" : [ "database", "status" ]
+      }
+    }
+  }
+}

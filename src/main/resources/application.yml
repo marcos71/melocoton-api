@@ -35,3 +35,19 @@ spring:
         jdbc:
           # Timestamps are stored in UTC (DI-14).
           time_zone: UTC
+
+springdoc:
+  # Only the API's own endpoints go into the contract.
+  paths-to-match: /api/**
+  # Stable key order, so openapi/openapi.json only changes when the API changes.
+  writer-with-order-by-keys: true
+  # Error responses are documented by hand (ErrorResponse schema), not inferred from
+  # the exception handler, which would attach every error status to every endpoint.
+  override-with-generic-response: false
+  # Keep schemas no endpoint references yet (ErrorResponse), the PWA needs them.
+  remove-broken-reference-definitions: false
+
+melocoton:
+  cors:
+    # The PWA's origin; the only one allowed to call the API from a browser.
+    allowed-origin: ${CORS_ALLOWED_ORIGIN}
