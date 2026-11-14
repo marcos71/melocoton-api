@@ -24,6 +24,9 @@ spring:
     url: ${DB_URL}
     user: ${DB_OWNER_USER}
     password: ${DB_OWNER_PASSWORD}
+    placeholders:
+      # Role the migrations grant privileges to: the one the API connects with.
+      appRole: ${DB_APP_USER}
 
   jpa:
     open-in-view: false
