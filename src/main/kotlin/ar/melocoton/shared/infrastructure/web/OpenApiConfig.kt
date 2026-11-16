@@ -4,6 +4,7 @@ import io.swagger.v3.core.converter.ModelConverters
 import io.swagger.v3.oas.models.Components
 import io.swagger.v3.oas.models.OpenAPI
 import io.swagger.v3.oas.models.info.Info
+import io.swagger.v3.oas.models.security.SecurityScheme
 import org.springdoc.core.customizers.OpenApiCustomizer
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -16,7 +17,15 @@ import org.springframework.context.annotation.Configuration
 class OpenApiConfig {
 
     @Bean
-    fun openApi(): OpenAPI = OpenAPI().info(
+    fun openApi(): OpenAPI = OpenAPI()
+        // Endpoints that need a session say so with @SecurityRequirement(name = "bearerAuth").
+        .components(
+            Components().addSecuritySchemes(
+                "bearerAuth",
+                SecurityScheme().type(SecurityScheme.Type.HTTP).scheme("bearer").bearerFormat("JWT"),
+            ),
+        )
+        .info(
         Info()
             .title("Melocotón API")
             .version("v1")

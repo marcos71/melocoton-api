@@ -14,6 +14,9 @@ import org.springframework.context.annotation.Bean
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.security.access.AccessDeniedException
+import org.springframework.security.authentication.InsufficientAuthenticationException
+import org.springframework.security.test.context.support.WithMockUser
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.ResultActionsDsl
 import org.springframework.test.web.servlet.delete
@@ -29,9 +32,11 @@ import javax.sql.DataSource
 /**
  * Every error leaves the API as `{ "error": { "code", "message" } }` with the right status
  * (`02`, 7.1 and 7.3). The timeout cases run against the real test database.
+ * The example endpoints live under /api, so the requests carry a logged-in user.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
+@WithMockUser
 class GlobalExceptionHandlerTest(
     @Autowired private val mvc: MockMvc,
     @Autowired private val dataSource: DataSource,
@@ -60,6 +65,7 @@ class GlobalExceptionHandlerTest(
         assertThat(BusinessErrorKind.entries.associateWith { it.httpStatus() }).containsExactlyInAnyOrderEntriesOf(
             mapOf(
                 BusinessErrorKind.INVALID to HttpStatus.BAD_REQUEST,
+                BusinessErrorKind.UNAUTHENTICATED to HttpStatus.UNAUTHORIZED,
                 BusinessErrorKind.NOT_FOUND to HttpStatus.NOT_FOUND,
                 BusinessErrorKind.CONFLICT to HttpStatus.CONFLICT,
                 BusinessErrorKind.LIMIT_REACHED to HttpStatus.TOO_MANY_REQUESTS,
@@ -97,6 +103,16 @@ class GlobalExceptionHandlerTest(
     fun `an unexpected error returns 500 without internal details`() {
         mvc.get("$BASE/boom").isError(HttpStatus.INTERNAL_SERVER_ERROR, "internal_error")
             .andExpect { content { string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("secret"))) } }
+    }
+
+    @Test
+    fun `CP-22 a role check that fails inside a controller returns 403, not 500`() {
+        mvc.get("$BASE/denied").isError(HttpStatus.FORBIDDEN, "role_not_allowed")
+    }
+
+    @Test
+    fun `an authentication failure inside a controller returns 401, not 500`() {
+        mvc.get("$BASE/unauthenticated").isError(HttpStatus.UNAUTHORIZED, "not_authenticated")
     }
 
     @Test
@@ -143,6 +159,12 @@ class GlobalExceptionHandlerTest(
 
         @GetMapping("/boom")
         fun boom(): Nothing = throw IllegalStateException("secret internal detail")
+
+        @GetMapping("/denied")
+        fun denied(): Nothing = throw AccessDeniedException("role not allowed")
+
+        @GetMapping("/unauthenticated")
+        fun unauthenticated(): Nothing = throw InsufficientAuthenticationException("no session")
 
         @GetMapping("/slow-query")
         fun slowQuery() = jdbc.execute("SELECT pg_sleep(6)")

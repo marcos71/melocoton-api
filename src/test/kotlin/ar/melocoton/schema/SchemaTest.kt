@@ -9,7 +9,7 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.transaction.annotation.Transactional
 
 /**
- * The V1 migration creates the MVP tables, seeds the settings and grants the API role
+ * The migrations create the MVP tables, seed the settings and grant the API role
  * exactly what it needs (DI-05; 02, 4.2 and 5). Runs as the API role; each test is rolled back.
  */
 @SpringBootTest
@@ -21,7 +21,7 @@ class SchemaTest(@Autowired private val jdbc: JdbcTemplate) {
     private val insertOnly = setOf("payment", "piece_status_history", "student_audit", "setting_change")
     private val updatable = setOf(
         "app_user", "student", "slot", "lesson_closure", "booking", "makeup_request",
-        "withdrawal_request", "piece", "settings", "ai_call",
+        "withdrawal_request", "piece", "settings", "ai_call", "account_link",
     )
 
     private fun tables(): List<String> = jdbc.queryForList(
@@ -33,7 +33,7 @@ class SchemaTest(@Autowired private val jdbc: JdbcTemplate) {
         jdbc.queryForObject("SELECT has_table_privilege(current_user, ?, ?)", Boolean::class.java, table, privilege)!!
 
     @Test
-    fun `V1 creates the 14 tables of the MVP`() {
+    fun `the migrations create the 14 tables of V1 and account_link of V2`() {
         assertThat(tables()).containsExactlyInAnyOrderElementsOf(insertOnly + updatable)
     }
 

@@ -2,12 +2,17 @@ package ar.melocoton.shared.infrastructure.web
 
 import ar.melocoton.shared.domain.BusinessErrorKind
 import ar.melocoton.shared.domain.BusinessRuleViolation
+import ar.melocoton.shared.infrastructure.security.SecurityErrorResponses
+import jakarta.servlet.http.HttpServletRequest
+import jakarta.servlet.http.HttpServletResponse
 import org.slf4j.LoggerFactory
 import org.springframework.dao.PessimisticLockingFailureException
 import org.springframework.dao.QueryTimeoutException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
+import org.springframework.security.access.AccessDeniedException
+import org.springframework.security.core.AuthenticationException
 import org.springframework.web.HttpRequestMethodNotSupportedException
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.MissingServletRequestParameterException
@@ -23,7 +28,7 @@ import java.sql.SQLException
  * person reads them; internal details (stack traces, SQL) never reach the client.
  */
 @RestControllerAdvice
-class GlobalExceptionHandler {
+class GlobalExceptionHandler(private val securityErrors: SecurityErrorResponses) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -59,6 +64,18 @@ class GlobalExceptionHandler {
         )
     }
 
+    /**
+     * A security check that fails inside a controller (for example a role check) must answer like
+     * the security filters do (401 or 403), not fall into the catch-all below as a 500.
+     */
+    @ExceptionHandler(AccessDeniedException::class, AuthenticationException::class)
+    fun security(e: Exception, request: HttpServletRequest, response: HttpServletResponse) {
+        when (e) {
+            is AccessDeniedException -> securityErrors.handle(request, response, e)
+            is AuthenticationException -> securityErrors.commence(request, response, e)
+        }
+    }
+
     @ExceptionHandler(Exception::class)
     fun unexpected(e: Exception): ResponseEntity<ErrorResponse> {
         // Spring does not always translate PostgreSQL timeouts (it depends on whether the
@@ -84,6 +101,7 @@ fun Throwable.isDatabaseTimeout(): Boolean =
 /** Mapping from business error kind to HTTP status (docs/glosario_en.md). */
 fun BusinessErrorKind.httpStatus(): HttpStatus = when (this) {
     BusinessErrorKind.INVALID -> HttpStatus.BAD_REQUEST
+    BusinessErrorKind.UNAUTHENTICATED -> HttpStatus.UNAUTHORIZED
     BusinessErrorKind.NOT_FOUND -> HttpStatus.NOT_FOUND
     BusinessErrorKind.CONFLICT -> HttpStatus.CONFLICT
     BusinessErrorKind.LIMIT_REACHED -> HttpStatus.TOO_MANY_REQUESTS
