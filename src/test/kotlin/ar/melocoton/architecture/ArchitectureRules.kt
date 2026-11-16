@@ -1,6 +1,7 @@
 package ar.melocoton.architecture
 
 import com.tngtech.archunit.base.DescribedPredicate.alwaysTrue
+import com.tngtech.archunit.core.domain.properties.CanBeAnnotated.Predicates.annotatedWith
 import com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage
 import com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage
 import com.tngtech.archunit.core.domain.JavaClass.Predicates.resideOutsideOfPackage
@@ -8,14 +9,16 @@ import com.tngtech.archunit.lang.ArchRule
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices
+import org.springframework.stereotype.Service
 import org.springframework.web.bind.annotation.RestController
 
 /**
- * Architecture rules of DI-18 (plan, section 3.1), parameterized by the root package
+ * Architecture rules of DI-18 and DI-21 (plan, section 3.1), parameterized by the root package
  * so they can be checked against the real code and against examples that break them.
  *
  * Layout: `<root>.<module>.{domain, application, infrastructure}`; `shared` is the
- * cross-cutting module.
+ * cross-cutting module. It is a single hexagon (DI-21): modules are folders by topic, and a
+ * use case may use another module's ports and domain, but never its infrastructure.
  */
 class ArchitectureRules(private val root: String) {
 
@@ -34,7 +37,7 @@ class ArchitectureRules(private val root: String) {
         .matching("$root.(*).domain..")
         .should().notDependOnEachOther()
         .ignoreDependency(alwaysTrue(), resideInAPackage("$shared.domain.."))
-        .because("modules talk through their application layer, not through each other's domain")
+        .because("a module's rules get other modules' data through parameters (DI-21)")
 
     /** Use cases do not know adapters or JPA. */
     fun applicationDoesNotUseInfrastructure(): ArchRule = noClasses()
@@ -73,13 +76,17 @@ class ArchitectureRules(private val root: String) {
         .matching("$root.(*)..")
         .should().notDependOnEachOther()
         .ignoreDependency(alwaysTrue(), resideInAnyPackage("$root..application..", "$root..domain..", "$shared.."))
-        .because("modules talk through their application layer")
+        .because("another module's persistence and controllers are its own detail (DI-21)")
 
-    /** If A uses B, B does not use A. */
-    fun modulesAreFreeOfCycles(): ArchRule = slices()
-        .matching("$root.(*)..")
-        .should().beFreeOfCycles()
-        .because("module dependencies go one way")
+    /**
+     * A use case injects repositories, not other use cases. No cycle rule is needed between modules:
+     * Spring already refuses to start when two beans need each other.
+     */
+    fun useCasesDoNotDependOnOtherUseCases(): ArchRule = noClasses()
+        .that().resideInAPackage("$root..application..")
+        .and().areAnnotatedWith(Service::class.java)
+        .should().dependOnClassesThat(resideInAPackage("$root..application..").and(annotatedWith(Service::class.java)))
+        .because("a use case coordinates repositories and the domain, not other use cases (DI-21)")
 
     /** `shared` is used by every module and uses none of them. */
     fun sharedDoesNotDependOnModules(): ArchRule = noClasses()
@@ -95,7 +102,7 @@ class ArchitectureRules(private val root: String) {
         jpaOnlyInPersistenceAdapters(),
         controllersOnlyInWebAdapters(),
         modulesDoNotUseOtherModulesInfrastructure(),
-        modulesAreFreeOfCycles(),
+        useCasesDoNotDependOnOtherUseCases(),
         sharedDoesNotDependOnModules(),
     )
 }

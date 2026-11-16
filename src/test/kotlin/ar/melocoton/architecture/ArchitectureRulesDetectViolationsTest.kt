@@ -65,8 +65,8 @@ class ArchitectureRulesDetectViolationsTest {
         assertViolates("crossinfra") { it.modulesDoNotUseOtherModulesInfrastructure() }
 
     @Test
-    fun `two modules cannot depend on each other`() =
-        assertViolates("cycle") { it.modulesAreFreeOfCycles() }
+    fun `a use case cannot inject another use case`() =
+        assertViolates("usecasecall") { it.useCasesDoNotDependOnOtherUseCases() }
 
     @Test
     fun `shared cannot depend on a module`() =
