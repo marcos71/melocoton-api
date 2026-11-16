@@ -14,6 +14,8 @@ class Argon2PasswordHasher : PasswordHasher {
     // Built at startup, not on first use: otherwise the first unknown email would be slower.
     private val dummyHash: String = encoder.encode("not-a-real-password-for-timing")!!
 
+    override fun hash(rawPassword: String): String = encoder.encode(rawPassword)!!
+
     override fun matches(rawPassword: String, hash: String?): Boolean {
         if (hash == null) {
             encoder.matches(rawPassword, dummyHash)

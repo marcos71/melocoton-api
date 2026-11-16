@@ -13,6 +13,16 @@ data class LoginRequest(
     @field:NotBlank val password: String,
 )
 
+/** Body of POST /api/v1/auth/password-reset-requests. */
+data class PasswordResetRequest(@field:NotBlank val email: String)
+
+/** Body of POST /api/v1/auth/set-password. The length rule is checked by the domain (DI-29, DI-33). */
+data class SetPasswordRequest(
+    /** The token from the link (`#token=...`). */
+    @field:NotBlank val token: String,
+    val newPassword: String,
+)
+
 /** Who is logged in. */
 data class SessionUserResponse(val id: Long, val name: String, val role: Role)
 

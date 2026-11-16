@@ -3,6 +3,7 @@ package ar.melocoton.auth.domain
 import ar.melocoton.shared.domain.Role
 import java.time.Duration
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 
 /**
  * A person's account: credentials, role, lockout and session cut-off.
@@ -15,13 +16,19 @@ class UserAccount(
     val email: String,
     val role: Role,
     /** Null until the invited person defines a password (D-11). */
-    val passwordHash: String?,
+    passwordHash: String?,
     val active: Boolean,
     failedLoginAttempts: Int,
     lockedUntil: Instant?,
     /** Session cut-off: only tokens issued with this exact value are valid; a password change moves it (DI-28). */
-    val sessionsValidFrom: Instant,
+    sessionsValidFrom: Instant,
 ) {
+    var passwordHash: String? = passwordHash
+        private set
+
+    var sessionsValidFrom: Instant = sessionsValidFrom
+        private set
+
     var failedLoginAttempts: Int = failedLoginAttempts
         private set
 
@@ -52,6 +59,24 @@ class UserAccount(
      */
     fun acceptsSession(tokenSessionsValidFrom: Instant): Boolean =
         active && tokenSessionsValidFrom == sessionsValidFrom
+
+    /** Whether a password reset link may be sent: never to an inactive account, at most 3 per hour (DI-31, DI-33). */
+    fun canRequestPasswordReset(resetsInLastHour: Int): Boolean =
+        active && resetsInLastHour < AccountLink.MAX_RESETS_PER_HOUR
+
+    /**
+     * Defines the password from a link (CU-01 2c, 2e). Proving control of the email also lifts
+     * the lockout, and moving the cut-off closes every open session (DI-28, DI-33).
+     * A deactivated account cannot use a link: it could not log in anyway (RF-45).
+     */
+    fun changePassword(newHash: String, now: Instant) {
+        if (!active) throw LinkExpired()
+        passwordHash = newHash
+        failedLoginAttempts = 0
+        lockedUntil = null
+        // PostgreSQL keeps microseconds; truncating here makes the stored value equal to this one.
+        sessionsValidFrom = now.truncatedTo(ChronoUnit.MICROS)
+    }
 
     private fun recordFailedAttempt(now: Instant) {
         // A lockout that already ended starts a fresh count.

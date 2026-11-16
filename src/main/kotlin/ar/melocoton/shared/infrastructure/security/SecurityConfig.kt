@@ -65,6 +65,8 @@ class SecurityConfig {
         val PUBLIC_API: RequestMatcher = OrRequestMatcher(
             paths.matcher("/api/v1/health"),
             paths.matcher(HttpMethod.POST, "/api/v1/auth/login"),
+            paths.matcher(HttpMethod.POST, "/api/v1/auth/password-reset-requests"),
+            paths.matcher(HttpMethod.POST, "/api/v1/auth/set-password"),
         )
 
         /**

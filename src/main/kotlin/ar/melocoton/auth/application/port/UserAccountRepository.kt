@@ -12,6 +12,12 @@ interface UserAccountRepository {
 
     fun findById(id: Long): UserAccount?
 
+    /** Loads the account and locks its row, like [lockByEmail], so a login cannot overwrite a password change. */
+    fun lockById(id: Long): UserAccount?
+
     /** Saves the failed attempts and lockout after a login attempt. */
     fun saveLoginState(account: UserAccount)
+
+    /** Saves the new password hash, the cleared lockout and the new session cut-off. */
+    fun savePassword(account: UserAccount)
 }

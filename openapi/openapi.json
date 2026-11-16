@@ -49,6 +49,29 @@
         "tags" : [ "Auth" ]
       }
     },
+    "/api/v1/auth/password-reset-requests" : {
+      "post" : {
+        "description" : "Always 202, whether or not the email exists or a link was sent (DI-33).",
+        "operationId" : "requestPasswordReset",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PasswordResetRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "202" : {
+            "description" : "Accepted"
+          }
+        },
+        "summary" : "Ask for a link to define a new password; also resends an invitation (CU-01 2c)",
+        "tags" : [ "Auth" ]
+      }
+    },
     "/api/v1/auth/refresh" : {
       "post" : {
         "operationId" : "refresh",
@@ -110,6 +133,38 @@
           "bearerAuth" : [ ]
         } ],
         "summary" : "Who is logged in, to build the navigation for the role (RF-02)",
+        "tags" : [ "Auth" ]
+      }
+    },
+    "/api/v1/auth/set-password" : {
+      "post" : {
+        "operationId" : "setPassword",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SetPasswordRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Password defined; every open session is closed"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "link_expired (expired, already used or inactive account); validation_error (the password must have 10 to 128 characters)"
+          }
+        },
+        "summary" : "Define the password from an invitation or reset link (CU-01 2c, 2e)",
         "tags" : [ "Auth" ]
       }
     },
@@ -210,6 +265,16 @@
         },
         "required" : [ "accessToken", "expiresAt", "user" ]
       },
+      "PasswordResetRequest" : {
+        "type" : "object",
+        "properties" : {
+          "email" : {
+            "type" : "string",
+            "minLength" : 1
+          }
+        },
+        "required" : [ "email" ]
+      },
       "SessionResponse" : {
         "type" : "object",
         "properties" : {
@@ -235,6 +300,19 @@
           }
         },
         "required" : [ "id", "name", "role" ]
+      },
+      "SetPasswordRequest" : {
+        "type" : "object",
+        "properties" : {
+          "newPassword" : {
+            "type" : "string"
+          },
+          "token" : {
+            "type" : "string",
+            "minLength" : 1
+          }
+        },
+        "required" : [ "newPassword", "token" ]
       },
       "TokenResponse" : {
         "type" : "object",

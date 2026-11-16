@@ -2,15 +2,15 @@ package ar.melocoton.auth.infrastructure.security
 
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
-import org.springframework.security.crypto.argon2.Argon2PasswordEncoder
 
 class Argon2PasswordHasherTest {
 
     private val hasher = Argon2PasswordHasher()
-    private val hash = Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8().encode("una-contraseña-larga")!!
+    // Hashed by the hasher itself: what SetPassword stores.
+    private val hash = hasher.hash("una-contraseña-larga")
 
     @Test
-    fun `RNF-03 the stored hash is Argon2id`() {
+    fun `RNF-03 a new password is stored as Argon2id`() {
         assertThat(hash).startsWith("\$argon2id\$")
     }
 
