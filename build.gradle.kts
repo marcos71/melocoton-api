@@ -61,6 +61,11 @@ allOpen {
 	annotation("jakarta.persistence.Embeddable")
 }
 
+// Local runs load the sample accounts (DevSeed, application-dev.yml).
+tasks.bootRun {
+	systemProperty("spring.profiles.active", "dev")
+}
+
 tasks.withType<Test> {
 	useJUnitPlatform()
 	// Every test runs against melocoton_test (application-test.yml).
