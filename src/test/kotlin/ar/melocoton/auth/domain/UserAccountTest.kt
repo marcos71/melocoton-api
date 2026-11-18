@@ -17,7 +17,7 @@ class UserAccountTest {
         lockedUntil: Instant? = null,
         sessionsValidFrom: Instant = now.minus(Duration.ofDays(1)),
     ) = UserAccount(
-        id = 1, name = "Ana", email = "ana@test.local", role = Role.STUDENT, passwordHash = "hash",
+        id = 1, name = "Ana", email = "ana@test.local", phone = "1100000000", role = Role.STUDENT, passwordHash = "hash",
         active = active, failedLoginAttempts = failedLoginAttempts, lockedUntil = lockedUntil,
         sessionsValidFrom = sessionsValidFrom,
     )
