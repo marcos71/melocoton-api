@@ -46,6 +46,8 @@ dependencies {
 	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
 	// Architecture rules: dependencies point to the domain (DI-18)
 	testImplementation("com.tngtech.archunit:archunit-junit5:1.5.1")
+	// Mocks for use case tests that check calls to ports (DI-35)
+	testImplementation("io.mockk:mockk:1.14.12")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

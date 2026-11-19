@@ -16,7 +16,7 @@ class AccountLinkMailSenderTest {
     private val sender = AccountLinkMailSender({ sent += it }, "https://app.melocoton.test/")
 
     private val account = UserAccount(
-        id = 1, name = "Ana", email = "ana@test.local", role = Role.ASSISTANT_TEACHER, passwordHash = null,
+        id = 1, name = "Ana", email = "ana@test.local", phone = "1100000000", role = Role.ASSISTANT_TEACHER, passwordHash = null,
         active = true, failedLoginAttempts = 0, lockedUntil = null, sessionsValidFrom = Instant.EPOCH,
     )
 

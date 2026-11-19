@@ -14,10 +14,11 @@ class UserAccount(
     val id: Long,
     val name: String,
     val email: String,
+    val phone: String,
     val role: Role,
     /** Null until the invited person defines a password (D-11). */
     passwordHash: String?,
-    val active: Boolean,
+    active: Boolean,
     failedLoginAttempts: Int,
     lockedUntil: Instant?,
     /** Session cut-off: only tokens issued with this exact value are valid; a password change moves it (DI-28). */
@@ -27,6 +28,9 @@ class UserAccount(
         private set
 
     var sessionsValidFrom: Instant = sessionsValidFrom
+        private set
+
+    var active: Boolean = active
         private set
 
     var failedLoginAttempts: Int = failedLoginAttempts
@@ -76,6 +80,15 @@ class UserAccount(
         lockedUntil = null
         // PostgreSQL keeps microseconds; truncating here makes the stored value equal to this one.
         sessionsValidFrom = now.truncatedTo(ChronoUnit.MICROS)
+    }
+
+    /**
+     * Deactivates the account (CU-02 D1a, RF-53). Nothing is deleted. Sessions need no cut-off:
+     * [acceptsSession] already rejects an inactive account on every request (RF-45).
+     */
+    fun deactivate() {
+        if (!active) throw AccountAlreadyInactive()
+        active = false
     }
 
     private fun recordFailedAttempt(now: Instant) {

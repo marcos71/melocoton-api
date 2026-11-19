@@ -1,6 +1,8 @@
 package ar.melocoton.auth.application.port
 
+import ar.melocoton.auth.domain.NewAccount
 import ar.melocoton.auth.domain.UserAccount
+import ar.melocoton.shared.domain.Role
 
 interface UserAccountRepository {
     /**
@@ -20,4 +22,16 @@ interface UserAccountRepository {
 
     /** Saves the new password hash, the cleared lockout and the new session cut-off. */
     fun savePassword(account: UserAccount)
+
+    /**
+     * Stores the account and returns it with its id. Fails with EmailAlreadyUsed if any account, of any
+     * role and state, already uses the email, ignoring case (DI-34).
+     */
+    fun create(account: NewAccount): UserAccount
+
+    /** Accounts of [role], ordered by name ignoring case and then id; [active] null means both states. */
+    fun findAllByRole(role: Role, active: Boolean?): List<UserAccount>
+
+    /** Saves the active flag. */
+    fun saveActive(account: UserAccount)
 }

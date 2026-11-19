@@ -1,5 +1,6 @@
 package ar.melocoton.auth.infrastructure.persistence
 
+import ar.melocoton.auth.domain.NewAccount
 import ar.melocoton.auth.domain.UserAccount
 import ar.melocoton.shared.domain.Role
 import jakarta.persistence.Column
@@ -52,10 +53,23 @@ fun UserAccountEntity.toDomain() = UserAccount(
     id = checkNotNull(id) { "A stored user always has an id" },
     name = name,
     email = email,
+    phone = phone,
     role = role,
     passwordHash = passwordHash,
     active = active,
     failedLoginAttempts = failedLoginAttempts,
     lockedUntil = lockedUntil,
+    sessionsValidFrom = sessionsValidFrom,
+)
+
+fun NewAccount.toEntity() = UserAccountEntity(
+    name = name,
+    email = email,
+    passwordHash = passwordHash,
+    role = role,
+    phone = phone,
+    active = active,
+    failedLoginAttempts = 0,
+    lockedUntil = null,
     sessionsValidFrom = sessionsValidFrom,
 )

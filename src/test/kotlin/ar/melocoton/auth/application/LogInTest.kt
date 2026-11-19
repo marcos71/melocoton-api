@@ -5,6 +5,7 @@ import ar.melocoton.auth.application.port.SessionToken
 import ar.melocoton.auth.application.port.SessionTokens
 import ar.melocoton.auth.application.port.UserAccountRepository
 import ar.melocoton.auth.domain.InvalidCredentials
+import ar.melocoton.auth.domain.NewAccount
 import ar.melocoton.auth.domain.UserAccount
 import ar.melocoton.shared.domain.Role
 import org.assertj.core.api.Assertions.assertThat
@@ -31,6 +32,9 @@ class LogInTest {
             saved += account.failedLoginAttempts to account.lockedUntil
         }
         override fun savePassword(account: UserAccount) = error("Logging in never changes the password")
+        override fun create(account: NewAccount) = error("Logging in never creates accounts")
+        override fun findAllByRole(role: Role, active: Boolean?) = error("Logging in never lists accounts")
+        override fun saveActive(account: UserAccount) = error("Logging in never changes the active flag")
     }
 
     /** The password is "right"; the hash is ignored. Records every check, to prove timing work happens. */
@@ -48,7 +52,7 @@ class LogInTest {
     }
 
     private fun account(active: Boolean = true) = UserAccount(
-        id = 7, name = "Ana", email = "ana@test.local", role = Role.STUDENT, passwordHash = "hash",
+        id = 7, name = "Ana", email = "ana@test.local", phone = "1100000000", role = Role.STUDENT, passwordHash = "hash",
         active = active, failedLoginAttempts = 0, lockedUntil = null, sessionsValidFrom = now.minusSeconds(60),
     )
 

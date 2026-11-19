@@ -20,6 +20,11 @@ import org.springframework.security.web.util.matcher.RequestMatcher
  * controller: for each request it reads `Authorization: Bearer <token>`, checks the signature
  * and expiry ([JwtConfig]), asks [SessionUserLookup] whether the session still holds, and only
  * then lets the request through.
+ *
+ * Per-role permissions live in the `authorizeHttpRequests` block below, and nowhere else (DI-34).
+ * The rules are evaluated in order and the first one that matches wins, so a specific path rule
+ * must come before the general session rule for the whole API. A valid session with the wrong role gets 403
+ * `role_not_allowed` from [SecurityErrorResponses].
  */
 @Configuration
 class SecurityConfig {
@@ -40,6 +45,7 @@ class SecurityConfig {
             sessionManagement { sessionCreationPolicy = SessionCreationPolicy.STATELESS }
             authorizeHttpRequests {
                 authorize(PUBLIC_API, permitAll)
+                authorize("/api/v1/assistant-teachers/**", hasRole("LEAD_TEACHER"))
                 authorize("/api/**", authenticated)
                 // Outside the API: Swagger UI, the OpenAPI document and Spring's error page.
                 authorize(anyRequest, permitAll)

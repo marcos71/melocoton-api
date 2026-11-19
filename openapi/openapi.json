@@ -10,6 +10,181 @@
     "description" : "Generated server url"
   } ],
   "paths" : {
+    "/api/v1/assistant-teachers" : {
+      "get" : {
+        "operationId" : "list",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "active",
+          "required" : false,
+          "schema" : {
+            "type" : "boolean"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/AssistantTeacherResponse"
+                  }
+                }
+              }
+            },
+            "description" : "The assistant teachers"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "validation_error: active is not true or false"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "role_not_allowed: only the lead teacher"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "List assistant teachers, ordered by name; optionally only active or inactive (CU-02 D1)",
+        "tags" : [ "Assistant teachers" ]
+      },
+      "post" : {
+        "description" : "Name, email and phone are required. The email must not belong to any other account.",
+        "operationId" : "create",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateAssistantTeacherRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AssistantTeacherResponse"
+                }
+              }
+            },
+            "description" : "Account created and invitation sent"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "validation_error"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "role_not_allowed: only the lead teacher"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "email_already_used"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "Invite an assistant teacher; they get an email to define their password (CU-02 D1, RF-53)",
+        "tags" : [ "Assistant teachers" ]
+      }
+    },
+    "/api/v1/assistant-teachers/{id}/deactivate" : {
+      "post" : {
+        "operationId" : "deactivate",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AssistantTeacherResponse"
+                }
+              }
+            },
+            "description" : "The account, now inactive"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "role_not_allowed: only the lead teacher"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "not_found: the id is not an assistant teacher"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "status_conflict: the account is already inactive"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "Deactivate an assistant teacher; their sessions stop working (CU-02 D1a, RF-53)",
+        "tags" : [ "Assistant teachers" ]
+      }
+    },
     "/api/v1/auth/login" : {
       "post" : {
         "operationId" : "login",
@@ -200,6 +375,48 @@
   },
   "components" : {
     "schemas" : {
+      "AssistantTeacherResponse" : {
+        "type" : "object",
+        "properties" : {
+          "active" : {
+            "type" : "boolean"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "phone" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "active", "email", "id", "name", "phone" ]
+      },
+      "CreateAssistantTeacherRequest" : {
+        "type" : "object",
+        "properties" : {
+          "email" : {
+            "type" : "string",
+            "format" : "email",
+            "minLength" : 1,
+            "pattern" : "^[^@\\s]+@[^@\\s.]+(\\.[^@\\s.]+)+$"
+          },
+          "name" : {
+            "type" : "string",
+            "minLength" : 1
+          },
+          "phone" : {
+            "type" : "string",
+            "minLength" : 1
+          }
+        },
+        "required" : [ "email", "name", "phone" ]
+      },
       "ErrorBody" : {
         "properties" : {
           "code" : {

@@ -1,5 +1,6 @@
 package ar.melocoton.auth.infrastructure.persistence
 
+import ar.melocoton.shared.domain.Role
 import jakarta.persistence.LockModeType
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Lock
@@ -16,4 +17,11 @@ interface UserAccountJpaRepository : JpaRepository<UserAccountEntity, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT u FROM UserAccountEntity u WHERE u.id = :id")
     fun lockById(id: Long): UserAccountEntity?
+
+    // A null `active` means both states. cast(... as boolean) lets PostgreSQL type the null parameter.
+    @Query(
+        "SELECT u FROM UserAccountEntity u WHERE u.role = :role " +
+            "AND (cast(:active as boolean) IS NULL OR u.active = :active) ORDER BY lower(u.name), u.id",
+    )
+    fun findAllByRole(role: Role, active: Boolean?): List<UserAccountEntity>
 }
