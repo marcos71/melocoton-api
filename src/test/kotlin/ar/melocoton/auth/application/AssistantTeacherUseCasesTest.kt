@@ -13,6 +13,14 @@ import ar.melocoton.auth.domain.NewAccount
 import ar.melocoton.auth.domain.UserAccount
 import ar.melocoton.shared.application.port.AfterCommit
 import ar.melocoton.shared.domain.Role
+import io.mockk.CapturingSlot
+import io.mockk.confirmVerified
+import io.mockk.every
+import io.mockk.just
+import io.mockk.mockk
+import io.mockk.runs
+import io.mockk.slot
+import io.mockk.verify
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
@@ -31,175 +39,145 @@ class AssistantTeacherUseCasesTest {
         passwordHash = null, active = active, failedLoginAttempts = 0, lockedUntil = null, sessionsValidFrom = now,
     )
 
-    /** In-memory accounts that record what the use cases did. */
-    private class FakeAccounts(private val stored: UserAccount? = null, private val emailTaken: Boolean = false) :
-        UserAccountRepository {
-        val created = mutableListOf<NewAccount>()
-        val savedActive = mutableListOf<Boolean>()
+    private val accounts = mockk<UserAccountRepository>()
+    private val links = mockk<AccountLinkRepository>()
+    private val sender = mockk<AccountLinkSender>()
+    private val afterCommit = mockk<AfterCommit>()
+    private val tokens = mockk<AccountLinkTokens> {
+        every { generate() } returns "raw-token"
+        every { hash("raw-token") } returns "hash-of-raw-token"
+    }
 
-        override fun lockByEmail(email: String) = error("not used")
-        override fun findById(id: Long) = error("not used")
-        override fun lockById(id: Long) = stored?.takeIf { it.id == id }
-        override fun saveLoginState(account: UserAccount) = error("not used")
-        override fun savePassword(account: UserAccount) = error("not used")
-        override fun create(account: NewAccount): UserAccount {
-            if (emailTaken) throw EmailAlreadyUsed()
-            created += account
-            return UserAccount(
-                id = 9, name = account.name, email = account.email, phone = account.phone, role = account.role,
-                passwordHash = null, active = account.active, failedLoginAttempts = 0, lockedUntil = null,
-                sessionsValidFrom = account.sessionsValidFrom,
+    /** Actions registered for after the commit; a rollback is simply never running them. */
+    private val pending = mutableListOf<() -> Unit>()
+
+    private fun create() = CreateAssistantTeacher(accounts, links, tokens, sender, afterCommit, clock)
+
+    private fun commit() = pending.forEach { it() }
+
+    private fun stubAccountCreation(created: CapturingSlot<NewAccount> = slot()) {
+        every { accounts.create(capture(created)) } answers {
+            val new = created.captured
+            UserAccount(
+                id = 9, name = new.name, email = new.email, phone = new.phone, role = new.role,
+                passwordHash = null, active = new.active, failedLoginAttempts = 0, lockedUntil = null,
+                sessionsValidFrom = new.sessionsValidFrom,
             )
         }
-        override fun findAllByRole(role: Role, active: Boolean?) = error("not used")
-        override fun saveActive(account: UserAccount) {
-            savedActive += account.active
-        }
     }
 
-    private class FakeLinks : AccountLinkRepository {
-        val saved = mutableListOf<AccountLink>()
-        override fun save(link: AccountLink) {
-            saved += link
-        }
-        override fun lockByTokenHash(tokenHash: String) = error("not used")
-        override fun countCreatedSince(userId: Long, purpose: AccountLinkPurpose, since: Instant) = error("not used")
-        override fun useAllOpen(userId: Long, now: Instant) = error("not used")
-    }
-
-    private class FakeSender(private val failure: Exception? = null) : AccountLinkSender {
-        val sent = mutableListOf<Triple<Long, AccountLinkPurpose, String>>()
-        override fun send(account: UserAccount, purpose: AccountLinkPurpose, token: String) {
-            failure?.let { throw it }
-            sent += Triple(account.id, purpose, token)
-        }
-    }
-
-    /** Holds the actions until [commit]; a rollback is simply never calling it. */
-    private class FakeAfterCommit : AfterCommit {
-        val pending = mutableListOf<() -> Unit>()
-        override fun run(action: () -> Unit) {
-            pending += action
-        }
-        fun commit() = pending.forEach { it() }
-    }
-
-    private fun create(
-        accounts: UserAccountRepository,
-        links: AccountLinkRepository,
-        sender: AccountLinkSender,
-        afterCommit: AfterCommit,
-    ) = CreateAssistantTeacher(accounts, links, tokens, sender, afterCommit, clock)
-
-    private val tokens = object : AccountLinkTokens {
-        override fun generate() = "raw-token"
-        override fun hash(token: String) = "hash-of-$token"
+    private fun stubAfterCommit() {
+        every { afterCommit.run(any()) } answers { pending += firstArg<() -> Unit>() }
     }
 
     @Test
     fun `RF53_creatingSendsAnInvitationValidForSevenDays`() {
-        val accounts = FakeAccounts()
-        val links = FakeLinks()
-        val sender = FakeSender()
-        val afterCommit = FakeAfterCommit()
+        val created = slot<NewAccount>()
+        val link = slot<AccountLink>()
+        stubAccountCreation(created)
+        stubAfterCommit()
+        every { links.save(capture(link)) } just runs
+        every { sender.send(any(), any(), any()) } just runs
 
-        val result = create(accounts, links, sender, afterCommit).create("Martín", " martin@test.local ", "1100000000")
-        afterCommit.commit()
+        val result = create().create("Martín", " martin@test.local ", "1100000000")
+        commit()
 
         assertThat(result.role).isEqualTo(Role.ASSISTANT_TEACHER)
-        assertThat(accounts.created.single().email).isEqualTo("martin@test.local")
-        val link = links.saved.single()
-        assertThat(link.purpose).isEqualTo(AccountLinkPurpose.INVITATION)
-        assertThat(link.userId).isEqualTo(9)
-        assertThat(link.tokenHash).isEqualTo("hash-of-raw-token")
-        assertThat(Duration.between(link.createdAt, link.expiresAt)).isEqualTo(Duration.ofDays(7))
-        assertThat(sender.sent).containsExactly(Triple(9L, AccountLinkPurpose.INVITATION, "raw-token"))
+        assertThat(created.captured.email).isEqualTo("martin@test.local")
+        assertThat(link.captured.purpose).isEqualTo(AccountLinkPurpose.INVITATION)
+        assertThat(link.captured.userId).isEqualTo(9)
+        assertThat(link.captured.tokenHash).isEqualTo("hash-of-raw-token")
+        assertThat(Duration.between(link.captured.createdAt, link.captured.expiresAt)).isEqualTo(Duration.ofDays(7))
+        verify(exactly = 1) { sender.send(match { it.id == 9L }, AccountLinkPurpose.INVITATION, "raw-token") }
+        confirmVerified(sender)
     }
 
     @Test
     fun `RF53_aDuplicateEmailSavesAndSendsNothing`() {
-        val accounts = FakeAccounts(emailTaken = true)
-        val links = FakeLinks()
-        val sender = FakeSender()
-        val afterCommit = FakeAfterCommit()
+        every { accounts.create(any()) } throws EmailAlreadyUsed()
 
-        assertThatThrownBy {
-            create(accounts, links, sender, afterCommit).create("Martín", "martin@test.local", "1100000000")
-        }.isInstanceOf(EmailAlreadyUsed::class.java)
+        assertThatThrownBy { create().create("Martín", "martin@test.local", "1100000000") }
+            .isInstanceOf(EmailAlreadyUsed::class.java)
 
-        assertThat(accounts.created).isEmpty()
-        assertThat(links.saved).isEmpty()
-        assertThat(afterCommit.pending).isEmpty()
-        assertThat(sender.sent).isEmpty()
+        verify(exactly = 0) { links.save(any()) }
+        verify(exactly = 0) { afterCommit.run(any()) }
+        verify(exactly = 0) { sender.send(any(), any(), any()) }
     }
 
     @Test
     fun `RF53_theInvitationIsNotSentUntilTheTransactionCommits`() {
-        val sender = FakeSender()
-        val afterCommit = FakeAfterCommit()
+        stubAccountCreation()
+        stubAfterCommit()
+        every { links.save(any()) } just runs
+        every { sender.send(any(), any(), any()) } just runs
 
-        create(FakeAccounts(), FakeLinks(), sender, afterCommit).create("Martín", "martin@test.local", "1100000000")
-        assertThat(sender.sent).isEmpty()
+        create().create("Martín", "martin@test.local", "1100000000")
+        verify(exactly = 0) { sender.send(any(), any(), any()) }
 
-        afterCommit.commit()
-        assertThat(sender.sent).hasSize(1)
+        commit()
+        verify(exactly = 1) { sender.send(any(), any(), any()) }
     }
 
     @Test
     fun `RF53_ifSavingTheLinkFailsNothingIsLeftToSendAfterTheRollback`() {
-        val sender = FakeSender()
-        val afterCommit = FakeAfterCommit()
-        val failingLinks = object : AccountLinkRepository by FakeLinks() {
-            override fun save(link: AccountLink) = throw IllegalStateException("link insert failed")
-        }
+        stubAccountCreation()
+        stubAfterCommit()
+        every { links.save(any()) } throws IllegalStateException("link insert failed")
 
-        assertThatThrownBy {
-            create(FakeAccounts(), failingLinks, sender, afterCommit).create("Martín", "martin@test.local", "1100000000")
-        }.isInstanceOf(IllegalStateException::class.java)
+        assertThatThrownBy { create().create("Martín", "martin@test.local", "1100000000") }
+            .isInstanceOf(IllegalStateException::class.java)
 
         // The email is registered only after the link is saved, so a rollback leaves nothing to run.
-        assertThat(afterCommit.pending).isEmpty()
-        assertThat(sender.sent).isEmpty()
+        verify(exactly = 0) { afterCommit.run(any()) }
+        assertThat(pending).isEmpty()
+        verify(exactly = 0) { sender.send(any(), any(), any()) }
     }
 
     @Test
     fun `RF53_ifSendingFailsAfterTheCommitTheAccountIsStillCreated`() {
-        val afterCommit = FakeAfterCommit()
-        val sender = FakeSender(failure = IllegalStateException("smtp down"))
+        stubAccountCreation()
+        stubAfterCommit()
+        every { links.save(any()) } just runs
+        every { sender.send(any(), any(), any()) } throws IllegalStateException("smtp down")
 
-        val result = create(FakeAccounts(), FakeLinks(), sender, afterCommit).create("Martín", "martin@test.local", "1100000000")
+        val result = create().create("Martín", "martin@test.local", "1100000000")
 
         assertThat(result.id).isEqualTo(9)
-        afterCommit.commit() // the failure is logged, not thrown
+        commit() // the failure is logged, not thrown
+        verify(exactly = 1) { sender.send(any(), any(), any()) }
     }
 
     @Test
     fun `RF53_deactivatingSavesTheInactiveAccount`() {
-        val accounts = FakeAccounts(stored = account(Role.ASSISTANT_TEACHER))
+        every { accounts.lockById(9) } returns account(Role.ASSISTANT_TEACHER)
+        val saved = slot<UserAccount>()
+        every { accounts.saveActive(capture(saved)) } just runs
 
         val result = DeactivateAssistantTeacher(accounts).deactivate(9)
 
         assertThat(result.active).isFalse()
-        assertThat(accounts.savedActive).containsExactly(false)
+        assertThat(saved.captured.active).isFalse()
+        verify(exactly = 1) { accounts.saveActive(any()) }
     }
 
     @Test
     fun `RF53_deactivatingAStudentOrAMissingIdIsNotFoundAndChangesNothing`() {
-        val accounts = FakeAccounts(stored = account(Role.STUDENT))
+        every { accounts.lockById(9) } returns account(Role.STUDENT)
+        every { accounts.lockById(10) } returns null
         val deactivate = DeactivateAssistantTeacher(accounts)
 
         assertThatThrownBy { deactivate.deactivate(9) }.isInstanceOf(AssistantTeacherNotFound::class.java)
         assertThatThrownBy { deactivate.deactivate(10) }.isInstanceOf(AssistantTeacherNotFound::class.java)
 
-        assertThat(accounts.savedActive).isEmpty()
+        verify(exactly = 0) { accounts.saveActive(any()) }
     }
 
     @Test
     fun `RF53_deactivatingAnInactiveAccountIsAStatusConflict`() {
-        val accounts = FakeAccounts(stored = account(Role.ASSISTANT_TEACHER, active = false))
+        every { accounts.lockById(9) } returns account(Role.ASSISTANT_TEACHER, active = false)
 
         assertThatThrownBy { DeactivateAssistantTeacher(accounts).deactivate(9) }
             .isInstanceOf(AccountAlreadyInactive::class.java)
-        assertThat(accounts.savedActive).isEmpty()
+        verify(exactly = 0) { accounts.saveActive(any()) }
     }
 }
