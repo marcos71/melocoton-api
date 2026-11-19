@@ -53,6 +53,7 @@ class SecurityConfig {
             authorizeHttpRequests {
                 authorize(PUBLIC_API, permitAll)
                 authorize("/api/v1/assistant-teachers/**", hasRole("LEAD_TEACHER"))
+                authorize("/api/v1/slots/**", hasRole("LEAD_TEACHER"))
                 authorize("/api/**", authenticated)
                 // Outside the API: Swagger UI, the OpenAPI document and Spring's error page.
                 authorize(anyRequest, permitAll)

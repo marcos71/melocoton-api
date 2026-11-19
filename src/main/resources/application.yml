@@ -33,11 +33,6 @@ spring:
     hibernate:
       # The schema is defined only by Flyway migrations; Hibernate just checks it.
       ddl-auto: validate
-    properties:
-      hibernate:
-        jdbc:
-          # Timestamps are stored in UTC (DI-14).
-          time_zone: UTC
 
 springdoc:
   # Only the API's own endpoints go into the contract.

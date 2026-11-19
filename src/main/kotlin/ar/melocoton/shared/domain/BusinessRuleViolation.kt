@@ -11,9 +11,12 @@ enum class BusinessErrorKind { INVALID, UNAUTHENTICATED, NOT_FOUND, CONFLICT, LI
  *
  * @param code stable identifier in English that the client can rely on (for example `capacity_full`).
  * @param message text for the person, in Spanish (DI-20).
+ * @param details optional data the person needs to act on the error (DI-23): one Kotlin class per code,
+ * plain data that serializes to JSON. Null for most errors.
  */
 open class BusinessRuleViolation(
     val code: String,
     override val message: String,
     val kind: BusinessErrorKind = BusinessErrorKind.CONFLICT,
+    val details: Any? = null,
 ) : RuntimeException(message)

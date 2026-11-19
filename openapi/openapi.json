@@ -12,7 +12,7 @@
   "paths" : {
     "/api/v1/assistant-teachers" : {
       "get" : {
-        "operationId" : "list",
+        "operationId" : "list_1",
         "parameters" : [ {
           "in" : "query",
           "name" : "active",
@@ -74,7 +74,7 @@
       },
       "post" : {
         "description" : "Name, email and phone are required. The email must not belong to any other account.",
-        "operationId" : "create",
+        "operationId" : "create_1",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -431,6 +431,294 @@
         "summary" : "Whether the API and its database are working",
         "tags" : [ "Health" ]
       }
+    },
+    "/api/v1/slots" : {
+      "get" : {
+        "description" : "Each slot carries its future lessons with more occupied places than the capacity (DI-43).",
+        "operationId" : "list",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "default" : "ACTIVE",
+            "enum" : [ "ACTIVE", "INACTIVE", "ALL" ]
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/SlotItemResponse"
+                  }
+                }
+              }
+            },
+            "description" : "The slots"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "validation_error: status is not ACTIVE, INACTIVE or ALL"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "role_not_allowed: only the lead teacher"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "too_many_requests: more than 60 requests in a minute from the same user"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "List slots ordered by day and start time (CU-03, RF-07)",
+        "tags" : [ "Slots" ]
+      },
+      "post" : {
+        "description" : "A slot may not overlap another active slot of the same day; touching ends are fine (DI-25).",
+        "operationId" : "create",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateSlotRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SlotResponse"
+                }
+              }
+            },
+            "description" : "The new slot"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "validation_error: a field is missing or out of range, or the start is not before the end"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "role_not_allowed: only the lead teacher"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "slot_overlap: details is SlotOverlapDetails"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "too_many_requests: more than 60 requests in a minute from the same user"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "Create a slot (CU-03, RF-06)",
+        "tags" : [ "Slots" ]
+      }
+    },
+    "/api/v1/slots/{id}" : {
+      "get" : {
+        "operationId" : "get",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SlotItemResponse"
+                }
+              }
+            },
+            "description" : "The slot"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "role_not_allowed: only the lead teacher"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "not_found"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "too_many_requests: more than 60 requests in a minute from the same user"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "One slot (CU-03, RF-07)",
+        "tags" : [ "Slots" ]
+      },
+      "patch" : {
+        "description" : "At least one field. The capacity cannot go below the occupancy of any future lesson. Day and time can change only while the slot has no bookings, and may not overlap another active slot.",
+        "operationId" : "update",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateSlotRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SlotItemResponse"
+                }
+              }
+            },
+            "description" : "The slot after the change"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "validation_error: nothing to change, a field out of range, or the start is not before the end"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "role_not_allowed: only the lead teacher"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "not_found"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "status_conflict: the slot is inactive. slot_has_bookings: day or time cannot change. slot_overlap: details is SlotOverlapDetails. capacity_below_occupancy: details is CapacityBelowOccupancyDetails"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "too_many_requests: more than 60 requests in a minute from the same user"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "Edit a slot (CU-03, RF-06, DI-45)",
+        "tags" : [ "Slots" ]
+      }
     }
   },
   "components" : {
@@ -457,6 +745,17 @@
         },
         "required" : [ "active", "email", "id", "name", "phone" ]
       },
+      "CapacityBelowOccupancyDetails" : {
+        "properties" : {
+          "lessons" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/LessonOverCapacity"
+            }
+          }
+        },
+        "required" : [ "lessons" ]
+      },
       "CreateAssistantTeacherRequest" : {
         "type" : "object",
         "properties" : {
@@ -477,11 +776,43 @@
         },
         "required" : [ "email", "name", "phone" ]
       },
+      "CreateSlotRequest" : {
+        "type" : "object",
+        "properties" : {
+          "capacity" : {
+            "type" : "integer",
+            "format" : "int32",
+            "minimum" : 1
+          },
+          "dayOfWeek" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "ISO day of the week: 1 is Monday, 7 is Sunday",
+            "maximum" : 7,
+            "minimum" : 1
+          },
+          "endTime" : {
+            "type" : "string",
+            "description" : "HH:mm",
+            "example" : "18:00"
+          },
+          "startTime" : {
+            "type" : "string",
+            "description" : "HH:mm",
+            "example" : "18:00"
+          }
+        },
+        "required" : [ "capacity", "dayOfWeek", "endTime", "startTime" ]
+      },
       "ErrorBody" : {
         "properties" : {
           "code" : {
             "type" : "string",
             "description" : "Stable identifier in English, for the client"
+          },
+          "details" : {
+            "type" : "object",
+            "description" : "Only for some codes (DI-23): its shape depends on the code; each endpoint names the schema."
           },
           "message" : {
             "type" : "string",
@@ -512,6 +843,23 @@
         },
         "required" : [ "database", "status" ]
       },
+      "LessonOverCapacity" : {
+        "properties" : {
+          "lessonDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "occupancy" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "spotsToFree" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "lessonDate", "occupancy", "spotsToFree" ]
+      },
       "LoginRequest" : {
         "type" : "object",
         "properties" : {
@@ -541,6 +889,20 @@
           }
         },
         "required" : [ "accessToken", "expiresAt", "user" ]
+      },
+      "OverbookedLessonResponse" : {
+        "type" : "object",
+        "properties" : {
+          "lessonDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "occupancy" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "lessonDate", "occupancy" ]
       },
       "PasswordResetRequest" : {
         "type" : "object",
@@ -591,6 +953,98 @@
         },
         "required" : [ "newPassword", "token" ]
       },
+      "SlotItemResponse" : {
+        "type" : "object",
+        "properties" : {
+          "active" : {
+            "type" : "boolean"
+          },
+          "capacity" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "dayOfWeek" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "ISO day of the week: 1 is Monday, 7 is Sunday"
+          },
+          "endTime" : {
+            "type" : "string",
+            "description" : "HH:mm",
+            "example" : "18:00"
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "startTime" : {
+            "type" : "string",
+            "description" : "HH:mm",
+            "example" : "18:00"
+          },
+          "upcomingOverbookedLessons" : {
+            "type" : "array",
+            "description" : "Lessons not started yet whose occupancy is above the capacity, by date",
+            "items" : {
+              "$ref" : "#/components/schemas/OverbookedLessonResponse"
+            }
+          }
+        },
+        "required" : [ "active", "capacity", "dayOfWeek", "endTime", "id", "startTime", "upcomingOverbookedLessons" ]
+      },
+      "SlotOverlapDetails" : {
+        "properties" : {
+          "dayOfWeek" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "endTime" : {
+            "type" : "string",
+            "format" : "time-local"
+          },
+          "slotId" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "startTime" : {
+            "type" : "string",
+            "format" : "time-local"
+          }
+        },
+        "required" : [ "dayOfWeek", "endTime", "slotId", "startTime" ]
+      },
+      "SlotResponse" : {
+        "type" : "object",
+        "properties" : {
+          "active" : {
+            "type" : "boolean"
+          },
+          "capacity" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "dayOfWeek" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "ISO day of the week: 1 is Monday, 7 is Sunday"
+          },
+          "endTime" : {
+            "type" : "string",
+            "description" : "HH:mm",
+            "example" : "18:00"
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "startTime" : {
+            "type" : "string",
+            "description" : "HH:mm",
+            "example" : "18:00"
+          }
+        },
+        "required" : [ "active", "capacity", "dayOfWeek", "endTime", "id", "startTime" ]
+      },
       "TokenResponse" : {
         "type" : "object",
         "properties" : {
@@ -603,6 +1057,33 @@
           }
         },
         "required" : [ "accessToken", "expiresAt" ]
+      },
+      "UpdateSlotRequest" : {
+        "type" : "object",
+        "properties" : {
+          "capacity" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int32",
+            "minimum" : 1
+          },
+          "dayOfWeek" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int32",
+            "description" : "ISO day of the week: 1 is Monday, 7 is Sunday",
+            "maximum" : 7,
+            "minimum" : 1
+          },
+          "endTime" : {
+            "type" : [ "string", "null" ],
+            "description" : "HH:mm",
+            "example" : "18:00"
+          },
+          "startTime" : {
+            "type" : [ "string", "null" ],
+            "description" : "HH:mm",
+            "example" : "18:00"
+          }
+        }
       }
     },
     "securitySchemes" : {
