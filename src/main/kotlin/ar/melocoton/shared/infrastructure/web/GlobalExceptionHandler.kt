@@ -33,7 +33,7 @@ class GlobalExceptionHandler(private val securityErrors: SecurityErrorResponses)
     private val log = LoggerFactory.getLogger(javaClass)
 
     @ExceptionHandler(BusinessRuleViolation::class)
-    fun businessRule(e: BusinessRuleViolation) = respond(e.kind.httpStatus(), e.code, e.message)
+    fun businessRule(e: BusinessRuleViolation) = respond(e.kind.httpStatus(), e.code, e.message, e.details)
 
     @ExceptionHandler(
         MethodArgumentNotValidException::class,
@@ -85,8 +85,8 @@ class GlobalExceptionHandler(private val securityErrors: SecurityErrorResponses)
         return respond(HttpStatus.INTERNAL_SERVER_ERROR, "internal_error", "Ocurrió un error inesperado.")
     }
 
-    private fun respond(status: HttpStatus, code: String, message: String) =
-        ResponseEntity.status(status).body(ErrorResponse.of(code, message))
+    private fun respond(status: HttpStatus, code: String, message: String, details: Any? = null) =
+        ResponseEntity.status(status).body(ErrorResponse.of(code, message, details))
 }
 
 /** PostgreSQL SQL states for lock_timeout (55P03) and statement_timeout (57014). */
