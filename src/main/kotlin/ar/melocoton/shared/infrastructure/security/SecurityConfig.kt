@@ -2,6 +2,7 @@ package ar.melocoton.shared.infrastructure.security
 
 import ar.melocoton.shared.application.port.SessionUserLookup
 import jakarta.servlet.http.HttpServletRequest
+import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpMethod
@@ -9,11 +10,13 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.invoke
 import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter
 import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher
 import org.springframework.security.web.util.matcher.OrRequestMatcher
 import org.springframework.security.web.util.matcher.RequestMatcher
+import java.time.Clock
 
 /**
  * Who may call what (DI-06, DI-28). Spring Security runs as a chain of filters before any
@@ -24,9 +27,11 @@ import org.springframework.security.web.util.matcher.RequestMatcher
  * Per-role permissions live in the `authorizeHttpRequests` block below, and nowhere else (DI-34).
  * The rules are evaluated in order and the first one that matches wins, so a specific path rule
  * must come before the general session rule for the whole API. A valid session with the wrong role gets 403
- * `role_not_allowed` from [SecurityErrorResponses].
+ * `role_not_allowed` from [SecurityErrorResponses]. Request limits (RNF-25, DI-36) are two more
+ * filters in this chain: [LoginRateLimitFilter] and [UserRateLimitFilter].
  */
 @Configuration
+@EnableConfigurationProperties(RateLimitProperties::class)
 class SecurityConfig {
 
     @Bean
@@ -34,6 +39,8 @@ class SecurityConfig {
         http: HttpSecurity,
         sessions: SessionUserLookup,
         errors: SecurityErrorResponses,
+        rateLimits: RateLimitProperties,
+        clock: Clock,
     ): SecurityFilterChain {
         http {
             // CORS is checked before authentication, so the browser's preflight (which carries
@@ -60,6 +67,11 @@ class SecurityConfig {
                 authenticationEntryPoint = errors
                 accessDeniedHandler = errors
             }
+            // Request limits (RNF-25, DI-36). Both go after CorsFilter, so the browser can read
+            // the 429. Login attempts are counted before the token is looked at; the per-user
+            // count needs the user, so it goes right after the bearer token is accepted.
+            addFilterBefore<BearerTokenAuthenticationFilter>(LoginRateLimitFilter(rateLimits, clock, errors))
+            addFilterAfter<BearerTokenAuthenticationFilter>(UserRateLimitFilter(rateLimits, clock, errors))
         }
         return http.build()
     }
