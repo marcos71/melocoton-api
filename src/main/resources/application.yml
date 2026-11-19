@@ -54,3 +54,8 @@ melocoton:
   cors:
     # The PWA's origin; the only one allowed to call the API from a browser.
     allowed-origin: ${CORS_ALLOWED_ORIGIN}
+  session:
+    # Base64 key of at least 32 bytes that signs the session tokens (DI-28).
+    secret: ${JWT_SECRET}
+    # A token lasts this long without being refreshed (DI-28).
+    inactivity: 30d

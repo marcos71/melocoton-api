@@ -4,7 +4,7 @@ package ar.melocoton.shared.domain
  * What kind of business error happened. The domain decides the kind; the web layer
  * maps it to an HTTP status (docs/glosario_en.md), so the domain never knows about HTTP.
  */
-enum class BusinessErrorKind { INVALID, NOT_FOUND, CONFLICT, LIMIT_REACHED }
+enum class BusinessErrorKind { INVALID, UNAUTHENTICATED, NOT_FOUND, CONFLICT, LIMIT_REACHED }
 
 /**
  * A business rule rejected the operation.
