@@ -1,6 +1,7 @@
 package ar.melocoton.auth.infrastructure.web
 
 import ar.melocoton.auth.domain.UserAccount
+import ar.melocoton.shared.infrastructure.web.EMAIL_WITH_DOMAIN_DOT
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Pattern
@@ -22,8 +23,6 @@ class CreateAssistantTeacherRequest(name: String, email: String, phone: String) 
     @field:NotBlank
     val phone: String = phone.trim()
 }
-
-private const val EMAIL_WITH_DOMAIN_DOT = "^[^@\\s]+@[^@\\s.]+(\\.[^@\\s.]+)+$"
 
 /** An assistant teacher's account. */
 data class AssistantTeacherResponse(

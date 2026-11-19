@@ -54,6 +54,9 @@ class SecurityConfig {
                 authorize(PUBLIC_API, permitAll)
                 authorize("/api/v1/assistant-teachers/**", hasRole("LEAD_TEACHER"))
                 authorize("/api/v1/slots/**", hasRole("LEAD_TEACHER"))
+                // Only the list and numeric ids: /api/v1/students/me/** is for the student's own routes later.
+                authorize("/api/v1/students", hasRole("LEAD_TEACHER"))
+                authorize("/api/v1/students/{id:\\d+}", hasRole("LEAD_TEACHER"))
                 authorize("/api/**", authenticated)
                 // Outside the API: Swagger UI, the OpenAPI document and Spring's error page.
                 authorize(anyRequest, permitAll)

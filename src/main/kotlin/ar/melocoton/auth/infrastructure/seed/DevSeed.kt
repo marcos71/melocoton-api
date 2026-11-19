@@ -22,8 +22,8 @@ import java.time.LocalDate
  * Spring runs every [ApplicationRunner] bean once, right after startup. Accounts that already
  * exist are left alone, so a password changed from a link is kept.
  *
- * The student rows are written with plain SQL because the `students` module arrives in
- * iteration 2; this is sample data, not a use case.
+ * Sample data is written with plain SQL, not through the use cases: the accounts, their student
+ * rows and, when there are no slots yet, two slots so the students screen has something to filter by.
  */
 @Component
 @Profile("dev")
@@ -58,11 +58,19 @@ class DevSeed(
         }
         val hash = passwords.hash(password)
         val created = ACCOUNTS.filter { create(it, hash) }.map { it.email }
+        seedSlots()
         log.info(
             "Dev seed: {} account(s) created {}. Every sample account uses DEV_SEED_PASSWORD.",
             created.size, created,
         )
         return created
+    }
+
+    /** Two weekly slots, only while there are none: a slot has no natural key to detect a repeat by. */
+    private fun seedSlots() {
+        if (jdbc.queryForObject("SELECT count(*) FROM slot", Int::class.java) != 0) return
+        jdbc.update("INSERT INTO slot (day_of_week, start_time, end_time, capacity) VALUES (2, '18:00', '20:00', 8)")
+        jdbc.update("INSERT INTO slot (day_of_week, start_time, end_time, capacity) VALUES (4, '10:00', '12:00', 6)")
     }
 
     private fun create(account: SampleAccount, hash: String): Boolean {

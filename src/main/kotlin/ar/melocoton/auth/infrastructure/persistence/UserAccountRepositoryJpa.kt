@@ -48,6 +48,13 @@ class UserAccountRepositoryJpa(private val jpa: UserAccountJpaRepository) : User
     override fun findAllByRole(role: Role, active: Boolean?): List<UserAccount> =
         jpa.findAllByRole(role, active).map { it.toDomain() }
 
+    override fun saveContact(account: UserAccount) {
+        val entity = checkNotNull(jpa.findByIdOrNull(account.id)) { "Account ${account.id} disappeared" }
+        entity.name = account.name
+        entity.phone = account.phone
+        jpa.flush()
+    }
+
     override fun saveActive(account: UserAccount) {
         val entity = checkNotNull(jpa.findByIdOrNull(account.id)) { "Account ${account.id} disappeared" }
         entity.active = account.active

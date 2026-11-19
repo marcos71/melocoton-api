@@ -54,6 +54,19 @@ class DevSeedTest(
     }
 
     @Test
+    fun `CU02_leavesSlotsForTheStudentsScreenAndDoesNotRepeatThem`() {
+        // The API role cannot delete, so slots left by other tests may exist: the seed adds two only when there are none.
+        val before = jdbc.queryForObject("SELECT count(*) FROM slot", Int::class.java)!!
+
+        seed().seed()
+        val after = jdbc.queryForObject("SELECT count(*) FROM slot", Int::class.java)!!
+        seed().seed()
+
+        assertThat(after).isEqualTo(if (before == 0) 2 else before)
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM slot", Int::class.java)).isEqualTo(after)
+    }
+
+    @Test
     fun `every sample account logs in with DEV_SEED_PASSWORD`() {
         seed().seed()
 

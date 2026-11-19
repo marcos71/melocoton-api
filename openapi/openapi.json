@@ -719,6 +719,300 @@
         "summary" : "Edit a slot (CU-03, RF-06, DI-45)",
         "tags" : [ "Slots" ]
       }
+    },
+    "/api/v1/students" : {
+      "get" : {
+        "description" : "status defaults to ACTIVE. enrollmentType and slotId (the fixed slot) narrow the list when sent.",
+        "operationId" : "listStudents",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "default" : "ACTIVE",
+            "enum" : [ "ACTIVE", "INACTIVE", "ALL" ]
+          }
+        }, {
+          "in" : "query",
+          "name" : "enrollmentType",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "MONTHLY", "DROP_IN" ]
+          }
+        }, {
+          "in" : "query",
+          "name" : "slotId",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/StudentItemResponse"
+                  }
+                }
+              }
+            },
+            "description" : "The students"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "validation_error: a filter has an invalid value"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "role_not_allowed: only the lead teacher"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "too_many_requests: more than 60 requests in a minute from the same user"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "List students ordered by name (CU-02, RF-05)",
+        "tags" : [ "Students" ]
+      },
+      "post" : {
+        "description" : "Name, email, phone and enrollment type are required. A MONTHLY student starts on monthlyStartDate, or today when it is not sent; a DROP_IN student must not send it. The email must not belong to any other account.",
+        "operationId" : "createStudent",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateStudentRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StudentProfileResponse"
+                }
+              }
+            },
+            "description" : "The student, created and invited"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "validation_error: a field is missing or blank, the email is malformed, or a DROP_IN student sends a start date"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "role_not_allowed: only the lead teacher"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "email_already_used"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "too_many_requests: more than 60 requests in a minute from the same user"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "Register a student; they get an email to define their password (CU-02, RF-04, RF-05, DI-46)",
+        "tags" : [ "Students" ]
+      }
+    },
+    "/api/v1/students/{id}" : {
+      "get" : {
+        "operationId" : "getStudent",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StudentProfileResponse"
+                }
+              }
+            },
+            "description" : "The student"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "role_not_allowed: only the lead teacher"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "not_found: the id is not a student"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "too_many_requests: more than 60 requests in a minute from the same user"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "A student's profile (CU-02, DI-46)",
+        "tags" : [ "Students" ]
+      },
+      "patch" : {
+        "description" : "At least one of name and phone. The email, the modality and the start date cannot be edited here.",
+        "operationId" : "updateStudent",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateStudentRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StudentProfileResponse"
+                }
+              }
+            },
+            "description" : "The student, updated"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "validation_error: nothing to change, a blank value, or a field that cannot be edited"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "role_not_allowed: only the lead teacher"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "not_found: the id is not a student"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "too_many_requests: more than 60 requests in a minute from the same user"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "Edit a student's name and phone (CU-02, DI-46)",
+        "tags" : [ "Students" ]
+      }
     }
   },
   "components" : {
@@ -804,6 +1098,36 @@
         },
         "required" : [ "capacity", "dayOfWeek", "endTime", "startTime" ]
       },
+      "CreateStudentRequest" : {
+        "type" : "object",
+        "properties" : {
+          "email" : {
+            "type" : "string",
+            "format" : "email",
+            "minLength" : 1,
+            "pattern" : "^[^@\\s]+@[^@\\s.]+(\\.[^@\\s.]+)+$"
+          },
+          "enrollmentType" : {
+            "type" : "string",
+            "enum" : [ "MONTHLY", "DROP_IN" ]
+          },
+          "monthlyStartDate" : {
+            "type" : [ "string", "null" ],
+            "format" : "date",
+            "description" : "Only for MONTHLY, where it defaults to today; DROP_IN must not send it",
+            "example" : "2026-11-02"
+          },
+          "name" : {
+            "type" : "string",
+            "minLength" : 1
+          },
+          "phone" : {
+            "type" : "string",
+            "minLength" : 1
+          }
+        },
+        "required" : [ "email", "enrollmentType", "name", "phone" ]
+      },
       "ErrorBody" : {
         "properties" : {
           "code" : {
@@ -828,6 +1152,31 @@
           }
         },
         "required" : [ "error" ]
+      },
+      "FixedSlotResponse" : {
+        "type" : "object",
+        "properties" : {
+          "dayOfWeek" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "ISO day of the week: 1 is Monday, 7 is Sunday"
+          },
+          "endTime" : {
+            "type" : "string",
+            "description" : "HH:mm",
+            "example" : "18:00"
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "startTime" : {
+            "type" : "string",
+            "description" : "HH:mm",
+            "example" : "18:00"
+          }
+        },
+        "required" : [ "dayOfWeek", "endTime", "id", "startTime" ]
       },
       "HealthResponse" : {
         "type" : "object",
@@ -1045,6 +1394,71 @@
         },
         "required" : [ "active", "capacity", "dayOfWeek", "endTime", "id", "startTime" ]
       },
+      "StudentItemResponse" : {
+        "type" : "object",
+        "properties" : {
+          "active" : {
+            "type" : "boolean"
+          },
+          "enrollmentType" : {
+            "type" : "string",
+            "enum" : [ "MONTHLY", "DROP_IN" ]
+          },
+          "fixedSlot" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/FixedSlotResponse"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "active", "enrollmentType", "id", "name" ]
+      },
+      "StudentProfileResponse" : {
+        "type" : "object",
+        "properties" : {
+          "active" : {
+            "type" : "boolean"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "enrollmentType" : {
+            "type" : "string",
+            "enum" : [ "MONTHLY", "DROP_IN" ]
+          },
+          "fixedSlot" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/FixedSlotResponse"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "monthlyStartDate" : {
+            "type" : [ "string", "null" ],
+            "format" : "date",
+            "description" : "Only for MONTHLY students"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "phone" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "active", "email", "enrollmentType", "id", "name", "phone" ]
+      },
       "TokenResponse" : {
         "type" : "object",
         "properties" : {
@@ -1082,6 +1496,17 @@
             "type" : [ "string", "null" ],
             "description" : "HH:mm",
             "example" : "18:00"
+          }
+        }
+      },
+      "UpdateStudentRequest" : {
+        "type" : "object",
+        "properties" : {
+          "name" : {
+            "type" : [ "string", "null" ]
+          },
+          "phone" : {
+            "type" : [ "string", "null" ]
           }
         }
       }

@@ -12,9 +12,9 @@ import java.time.temporal.ChronoUnit
  */
 class UserAccount(
     val id: Long,
-    val name: String,
+    name: String,
     val email: String,
-    val phone: String,
+    phone: String,
     val role: Role,
     /** Null until the invited person defines a password (D-11). */
     passwordHash: String?,
@@ -24,6 +24,12 @@ class UserAccount(
     /** Session cut-off: only tokens issued with this exact value are valid; a password change moves it (DI-28). */
     sessionsValidFrom: Instant,
 ) {
+    var name: String = name
+        private set
+
+    var phone: String = phone
+        private set
+
     var passwordHash: String? = passwordHash
         private set
 
@@ -89,6 +95,12 @@ class UserAccount(
     fun deactivate() {
         if (!active) throw AccountAlreadyInactive()
         active = false
+    }
+
+    /** Replaces the name and/or the phone; a null keeps the current value. The email never changes here (DI-46). */
+    fun changeContact(name: String?, phone: String?) {
+        name?.let { this.name = it }
+        phone?.let { this.phone = it }
     }
 
     private fun recordFailedAttempt(now: Instant) {

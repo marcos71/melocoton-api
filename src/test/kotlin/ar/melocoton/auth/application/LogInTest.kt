@@ -35,6 +35,7 @@ class LogInTest {
         override fun create(account: NewAccount) = error("Logging in never creates accounts")
         override fun findAllByRole(role: Role, active: Boolean?) = error("Logging in never lists accounts")
         override fun saveActive(account: UserAccount) = error("Logging in never changes the active flag")
+        override fun saveContact(account: UserAccount) = error("Logging in never changes the contact data")
     }
 
     /** The password is "right"; the hash is ignored. Records every check, to prove timing work happens. */

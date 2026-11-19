@@ -32,6 +32,9 @@ interface UserAccountRepository {
     /** Accounts of [role], ordered by name ignoring case and then id; [active] null means both states. */
     fun findAllByRole(role: Role, active: Boolean?): List<UserAccount>
 
+    /** Saves the name and phone and writes them to the database right away, so a read in the same transaction sees them. */
+    fun saveContact(account: UserAccount)
+
     /** Saves the active flag. */
     fun saveActive(account: UserAccount)
 }
