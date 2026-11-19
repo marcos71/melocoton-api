@@ -1,0 +1,5 @@
+# Development profile: turned on by `gradlew bootRun` (build.gradle.kts), never in production.
+melocoton:
+  dev-seed:
+    # Password of every sample account (DevSeed). Set it in .env; 10 to 128 characters.
+    password: ${DEV_SEED_PASSWORD}

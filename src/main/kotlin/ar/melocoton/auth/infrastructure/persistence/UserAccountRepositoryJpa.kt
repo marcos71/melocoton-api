@@ -13,11 +13,21 @@ class UserAccountRepositoryJpa(private val jpa: UserAccountJpaRepository) : User
 
     override fun findById(id: Long): UserAccount? = jpa.findByIdOrNull(id)?.toDomain()
 
+    override fun lockById(id: Long): UserAccount? = jpa.lockById(id)?.toDomain()
+
     override fun saveLoginState(account: UserAccount) {
         // Inside the use case's transaction the row is already loaded, so this is not a second query;
         // the change is written when the transaction commits.
         val entity = jpa.getReferenceById(account.id)
         entity.failedLoginAttempts = account.failedLoginAttempts
         entity.lockedUntil = account.lockedUntil
+    }
+
+    override fun savePassword(account: UserAccount) {
+        val entity = jpa.getReferenceById(account.id)
+        entity.passwordHash = account.passwordHash
+        entity.failedLoginAttempts = account.failedLoginAttempts
+        entity.lockedUntil = account.lockedUntil
+        entity.sessionsValidFrom = account.sessionsValidFrom
     }
 }

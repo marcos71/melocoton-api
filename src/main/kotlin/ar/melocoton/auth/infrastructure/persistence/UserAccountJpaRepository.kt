@@ -12,4 +12,8 @@ interface UserAccountJpaRepository : JpaRepository<UserAccountEntity, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT u FROM UserAccountEntity u WHERE lower(u.email) = lower(:email)")
     fun lockByEmail(email: String): UserAccountEntity?
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT u FROM UserAccountEntity u WHERE u.id = :id")
+    fun lockById(id: Long): UserAccountEntity?
 }

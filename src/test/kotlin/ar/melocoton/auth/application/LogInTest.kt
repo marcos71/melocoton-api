@@ -26,14 +26,17 @@ class LogInTest {
         val saved = mutableListOf<Pair<Int, Instant?>>()
         override fun lockByEmail(email: String) = byEmail[email.lowercase()]
         override fun findById(id: Long) = byEmail.values.find { it.id == id }
+        override fun lockById(id: Long) = findById(id)
         override fun saveLoginState(account: UserAccount) {
             saved += account.failedLoginAttempts to account.lockedUntil
         }
+        override fun savePassword(account: UserAccount) = error("Logging in never changes the password")
     }
 
     /** The password is "right"; the hash is ignored. Records every check, to prove timing work happens. */
     private class FakePasswords : PasswordHasher {
         val checkedHashes = mutableListOf<String?>()
+        override fun hash(rawPassword: String) = error("Logging in never hashes a new password")
         override fun matches(rawPassword: String, hash: String?): Boolean {
             checkedHashes += hash
             return hash != null && rawPassword == "right"

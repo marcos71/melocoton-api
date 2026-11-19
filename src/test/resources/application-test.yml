@@ -11,6 +11,8 @@ spring:
 melocoton:
   cors:
     allowed-origin: http://localhost:5173
+  web:
+    base-url: http://localhost:5173
   session:
     # Test-only key (base64 of 35 bytes); production reads JWT_SECRET.
     secret: dGVzdC1vbmx5LXNlY3JldC1mb3ItbWVsb2NvdG9uLWFwaSE=

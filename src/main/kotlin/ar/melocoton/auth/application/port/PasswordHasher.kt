@@ -1,6 +1,9 @@
 package ar.melocoton.auth.application.port
 
-fun interface PasswordHasher {
+interface PasswordHasher {
+    /** Hashes a new password for storage (RNF-03). */
+    fun hash(rawPassword: String): String
+
     /**
      * Whether [rawPassword] matches [hash]. With a null hash (unknown email, or a password not
      * defined yet) it still does the same work and returns false, so the response time does not

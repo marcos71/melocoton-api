@@ -121,4 +121,47 @@ class UserAccountTest {
     fun `RF-45 an inactive account accepts no session`() {
         assertThat(account(active = false, sessionsValidFrom = now).acceptsSession(now)).isFalse()
     }
+
+    @Test
+    fun `DI-31 up to 3 password reset links per hour`() {
+        assertThat(account().canRequestPasswordReset(resetsInLastHour = 2)).isTrue()
+        assertThat(account().canRequestPasswordReset(resetsInLastHour = 3)).isFalse()
+    }
+
+    @Test
+    fun `DI-33 an inactive account gets no password reset link`() {
+        assertThat(account(active = false).canRequestPasswordReset(resetsInLastHour = 0)).isFalse()
+    }
+
+    @Test
+    fun `DI-33 changing the password lifts the lockout and closes the open sessions`() {
+        val oldCutOff = now.minus(Duration.ofDays(1))
+        val account = account(failedLoginAttempts = 5, lockedUntil = now.plus(Duration.ofMinutes(10)), sessionsValidFrom = oldCutOff)
+
+        account.changePassword("new-hash", now)
+
+        assertThat(account.passwordHash).isEqualTo("new-hash")
+        assertThat(account.failedLoginAttempts).isZero()
+        assertThat(account.lockedUntil).isNull()
+        assertThat(account.isLockedAt(now)).isFalse()
+        assertThat(account.sessionsValidFrom).isEqualTo(now)
+        assertThat(account.acceptsSession(oldCutOff)).isFalse()
+    }
+
+    @Test
+    fun `the new cut-off keeps only microseconds, as PostgreSQL stores it`() {
+        val account = account()
+
+        account.changePassword("new-hash", Instant.parse("2026-11-15T13:00:00.123456789Z"))
+
+        assertThat(account.sessionsValidFrom).isEqualTo(Instant.parse("2026-11-15T13:00:00.123456Z"))
+    }
+
+    @Test
+    fun `DI-33 a deactivated account cannot use a link`() {
+        val account = account(active = false)
+
+        assertThatThrownBy { account.changePassword("new-hash", now) }.isInstanceOf(LinkExpired::class.java)
+        assertThat(account.passwordHash).isEqualTo("hash")
+    }
 }
