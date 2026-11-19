@@ -1,6 +1,7 @@
 package ar.melocoton.auth.infrastructure.web
 
 import ar.melocoton.auth.application.port.AccountLinkTokens
+import ar.melocoton.shared.application.port.AfterCommit
 import ar.melocoton.shared.application.port.Mail
 import ar.melocoton.shared.application.port.Mailer
 import ar.melocoton.shared.domain.Role
@@ -56,6 +57,12 @@ class AccountLinkEndpointTest(
         @Bean
         @Primary
         fun recordingMailer() = RecordingMailer()
+
+        // The test transaction is rolled back, so a real after-commit action would never run.
+        // The commit timing is covered in PasswordResetEmailTest.
+        @Bean
+        @Primary
+        fun immediateAfterCommit() = AfterCommit { it() }
     }
 
     @BeforeEach
