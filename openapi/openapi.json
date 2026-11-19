@@ -54,6 +54,16 @@
               }
             },
             "description" : "role_not_allowed: only the lead teacher"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "too_many_requests: more than 60 requests in a minute from the same user"
           }
         },
         "security" : [ {
@@ -115,6 +125,16 @@
               }
             },
             "description" : "email_already_used"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "too_many_requests: more than 60 requests in a minute from the same user"
           }
         },
         "security" : [ {
@@ -176,6 +196,16 @@
               }
             },
             "description" : "status_conflict: the account is already inactive"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "too_many_requests: more than 60 requests in a minute from the same user"
           }
         },
         "security" : [ {
@@ -218,6 +248,16 @@
               }
             },
             "description" : "invalid_credentials, whatever the reason (DI-30)"
+          },
+          "429" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "too_many_requests: more than 30 attempts in a minute from the same IP (DI-31)"
           }
         },
         "summary" : "Log in with email and password (CU-01)",
@@ -270,6 +310,16 @@
               }
             },
             "description" : "not_authenticated: the session expired or is no longer valid"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "too_many_requests: more than 60 requests in a minute from the same user"
           }
         },
         "security" : [ {
@@ -302,6 +352,16 @@
               }
             },
             "description" : "not_authenticated"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "too_many_requests: more than 60 requests in a minute from the same user"
           }
         },
         "security" : [ {

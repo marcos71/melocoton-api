@@ -44,6 +44,11 @@ class AuthController(
             description = "invalid_credentials, whatever the reason (DI-30)",
             content = [Content(schema = Schema(implementation = ErrorResponse::class))],
         ),
+        ApiResponse(
+            responseCode = "429",
+            description = "too_many_requests: more than 30 attempts in a minute from the same IP (DI-31)",
+            content = [Content(schema = Schema(implementation = ErrorResponse::class))],
+        ),
     )
     fun login(@Valid @RequestBody request: LoginRequest): LoginResponse =
         logIn.logIn(request.email, request.password).toResponse()

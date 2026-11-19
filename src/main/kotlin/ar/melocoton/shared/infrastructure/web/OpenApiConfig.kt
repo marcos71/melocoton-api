@@ -4,6 +4,10 @@ import io.swagger.v3.core.converter.ModelConverters
 import io.swagger.v3.oas.models.Components
 import io.swagger.v3.oas.models.OpenAPI
 import io.swagger.v3.oas.models.info.Info
+import io.swagger.v3.oas.models.media.Content
+import io.swagger.v3.oas.models.media.MediaType
+import io.swagger.v3.oas.models.media.Schema
+import io.swagger.v3.oas.models.responses.ApiResponse
 import io.swagger.v3.oas.models.security.SecurityScheme
 import org.springdoc.core.customizers.OpenApiCustomizer
 import org.springframework.context.annotation.Bean
@@ -34,6 +38,26 @@ class OpenApiConfig {
                     "{ \"error\": { \"code\", \"message\" } } with a Spanish message.",
             ),
     )
+
+    /**
+     * Every endpoint that needs a session can answer 429 when the user goes over the per-user
+     * limit (RNF-25, DI-36). It is not declared on each controller: the filter, not the
+     * controller, produces it, so it is added here to the operations with a security requirement.
+     */
+    @Bean
+    fun rateLimitResponseCustomizer() = OpenApiCustomizer { openApi ->
+        val response = ApiResponse()
+            .description("too_many_requests: more than 60 requests in a minute from the same user")
+            .content(
+                Content().addMediaType(
+                    "application/json",
+                    MediaType().schema(Schema<Any>().`$ref`("#/components/schemas/ErrorResponse")),
+                ),
+            )
+        openApi.paths?.values?.flatMap { it.readOperations() }
+            ?.filter { !it.security.isNullOrEmpty() }
+            ?.forEach { it.responses.addApiResponse("429", response) }
+    }
 
     /**
      * The error shape is part of the contract even though no endpoint returns it directly.

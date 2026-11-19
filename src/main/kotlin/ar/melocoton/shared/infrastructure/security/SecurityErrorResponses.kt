@@ -1,6 +1,8 @@
 package ar.melocoton.shared.infrastructure.security
 
+import ar.melocoton.shared.domain.BusinessErrorKind
 import ar.melocoton.shared.infrastructure.web.ErrorResponse
+import ar.melocoton.shared.infrastructure.web.httpStatus
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.http.HttpHeaders
@@ -15,7 +17,8 @@ import tools.jackson.databind.ObjectMapper
 
 /**
  * Security rejects a request before it reaches a controller, so the GlobalExceptionHandler never
- * sees it. These two write the same error shape as every other error (`02`, 7.1; DI-20).
+ * sees it. These write the same error shape as every other error (`02`, 7.1; DI-20). The rate
+ * limit filters (RNF-25) use [tooManyRequests] for the same reason.
  */
 @Component
 class SecurityErrorResponses(private val json: ObjectMapper) : AuthenticationEntryPoint, AccessDeniedHandler {
@@ -30,6 +33,14 @@ class SecurityErrorResponses(private val json: ObjectMapper) : AuthenticationEnt
     override fun handle(request: HttpServletRequest, response: HttpServletResponse, e: AccessDeniedException) {
         write(response, HttpStatus.FORBIDDEN, "role_not_allowed", "Tu rol no tiene permiso para hacer esto.")
     }
+
+    /** Too many requests from this user or IP (RNF-25, DI-36): 429, with no Retry-After. */
+    fun tooManyRequests(response: HttpServletResponse) = write(
+        response,
+        BusinessErrorKind.LIMIT_REACHED.httpStatus(),
+        "too_many_requests",
+        "Hiciste demasiados pedidos seguidos. Esperá un minuto y probá de nuevo.",
+    )
 
     private fun write(response: HttpServletResponse, status: HttpStatus, code: String, message: String) {
         response.status = status.value()

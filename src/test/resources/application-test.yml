@@ -17,3 +17,8 @@ melocoton:
     # Test-only key (base64 of 35 bytes); production reads JWT_SECRET.
     secret: dGVzdC1vbmx5LXNlY3JldC1mb3ItbWVsb2NvdG9uLWFwaSE=
     inactivity: 30d
+  rate-limit:
+    # Practically off: the shared test context makes many requests from one IP and user within
+    # a minute. RateLimitEndpointTest runs with the real values on its own (DI-36).
+    login-per-ip: 1000000
+    per-user: 1000000

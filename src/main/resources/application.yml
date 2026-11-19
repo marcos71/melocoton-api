@@ -62,3 +62,8 @@ melocoton:
     secret: ${JWT_SECRET}
     # A token lasts this long without being refreshed (DI-28).
     inactivity: 30d
+  rate-limit:
+    # Request limits per rolling window (RNF-25, DI-31, DI-36). In memory: per instance.
+    login-per-ip: 30
+    per-user: 60
+    window: 1m
