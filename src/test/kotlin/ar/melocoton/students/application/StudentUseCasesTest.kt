@@ -5,18 +5,19 @@ import ar.melocoton.auth.domain.AccountInvited
 import ar.melocoton.auth.domain.EmailAlreadyUsed
 import ar.melocoton.auth.domain.NewAccount
 import ar.melocoton.auth.domain.UserAccount
+import ar.melocoton.bookings.domain.BookingType
 import ar.melocoton.shared.application.port.DomainEvents
 import ar.melocoton.shared.domain.Role
+import ar.melocoton.students.application.port.StudentProfile
+import ar.melocoton.students.application.port.StudentQueries
 import ar.melocoton.students.application.port.StudentRepository
+import ar.melocoton.students.application.port.UpcomingLesson
 import ar.melocoton.students.domain.EnrollmentType
 import ar.melocoton.students.domain.InvalidStudent
 import ar.melocoton.students.domain.Student
 import ar.melocoton.students.domain.StudentChange
 import ar.melocoton.students.domain.StudentFilter
 import ar.melocoton.students.domain.StudentNotFound
-import ar.melocoton.students.domain.StudentProfile
-import ar.melocoton.students.domain.UpcomingLesson
-import ar.melocoton.students.domain.UpcomingLessonType
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -42,6 +43,7 @@ class StudentUseCasesTest {
 
     private val accounts = mockk<UserAccountRepository>()
     private val students = mockk<StudentRepository>()
+    private val queries = mockk<StudentQueries>()
     private val events = mockk<DomainEvents>()
 
     private fun account(name: String = "Lucía", phone: String = "1155550000") = UserAccount(
@@ -54,14 +56,14 @@ class StudentUseCasesTest {
         enrollmentType = type, monthlyStartDate = start, fixedSlot = null,
     )
 
-    private fun createStudent() = CreateStudent(accounts, students, events, clock)
+    private fun createStudent() = CreateStudent(accounts, students, queries, events, clock)
 
     private fun stubCreation(createdAccount: io.mockk.CapturingSlot<NewAccount> = slot()) {
         every { accounts.create(capture(createdAccount)) } answers { account() }
         every { students.create(any()) } just runs
         every { events.publish(any()) } just runs
-        every { students.findProfile(9) } returns profile()
-        every { students.findUpcomingLessons(9, today) } returns emptyList()
+        every { queries.findProfile(9) } returns profile()
+        every { queries.findUpcomingLessons(9, today) } returns emptyList()
     }
 
     // ---- CreateStudent ----
@@ -95,7 +97,7 @@ class StudentUseCasesTest {
         val student = slot<Student>()
         stubCreation()
         every { students.create(capture(student)) } just runs
-        every { students.findProfile(9) } returns profile(EnrollmentType.DROP_IN, null)
+        every { queries.findProfile(9) } returns profile(EnrollmentType.DROP_IN, null)
 
         createStudent().create("Lucía", "lucia@test.local", "1155550000", EnrollmentType.DROP_IN, null)
 
@@ -131,12 +133,13 @@ class StudentUseCasesTest {
     @Test
     fun `RF04_editingChangesTheNameAndPhoneThroughTheAccountPort`() {
         val saved = slot<UserAccount>()
-        every { students.findProfile(9) } returns profile()
-        every { students.findUpcomingLessons(9, today) } returns emptyList()
+        every { students.exists(9) } returns true
+        every { queries.findProfile(9) } returns profile()
+        every { queries.findUpcomingLessons(9, today) } returns emptyList()
         every { accounts.lockById(9) } returns account()
         every { accounts.saveContact(capture(saved)) } just runs
 
-        UpdateStudent(accounts, students, clock).update(9, StudentChange(" Lucía G. ", null))
+        UpdateStudent(accounts, students, queries, clock).update(9, StudentChange(" Lucía G. ", null))
 
         assertThat(saved.captured.name).isEqualTo("Lucía G.")
         assertThat(saved.captured.phone).isEqualTo("1155550000")
@@ -145,48 +148,49 @@ class StudentUseCasesTest {
 
     @Test
     fun `RF04_editingAnIdThatIsNotAStudentIsNotFoundAndChangesNothing`() {
-        every { students.findProfile(9) } returns null
+        every { students.exists(9) } returns false
 
-        assertThatThrownBy { UpdateStudent(accounts, students, clock).update(9, StudentChange("Lucía G.", null)) }
+        assertThatThrownBy { UpdateStudent(accounts, students, queries, clock).update(9, StudentChange("Lucía G.", null)) }
             .isInstanceOf(StudentNotFound::class.java)
 
         verify(exactly = 0) { accounts.lockById(any()) }
         verify(exactly = 0) { accounts.saveContact(any()) }
+        verify(exactly = 0) { queries.findProfile(any()) }
     }
 
     // ---- GetStudent, ListStudents ----
 
     @Test
-    fun `DI46_theProfileListsOnlyTheClassesThatHaveNotStartedInOrder`() {
+    fun `DI46_theProfileListsOnlyTheClassesThatHaveNotStarted`() {
         // The clock is 2026-11-19 22:00 in Buenos Aires.
         fun lesson(id: Long, date: LocalDate, start: String) = UpcomingLesson(
-            id, date, 1, date.dayOfWeek, LocalTime.parse(start), LocalTime.parse(start).plusHours(2), UpcomingLessonType.FIXED,
+            id, date, 1, date.dayOfWeek, LocalTime.parse(start), LocalTime.parse(start).plusHours(2), BookingType.FIXED,
         )
-        every { students.findProfile(9) } returns profile()
-        every { students.findUpcomingLessons(9, today) } returns listOf(
-            lesson(3, today.plusDays(7), "18:00"),
+        every { queries.findProfile(9) } returns profile()
+        every { queries.findUpcomingLessons(9, today) } returns listOf(
             lesson(1, today, "18:00"),
             lesson(2, today, "23:00"),
+            lesson(3, today.plusDays(7), "18:00"),
         )
 
-        val result = GetStudent(students, clock).get(9)
+        val result = GetStudent(queries, clock).get(9)
 
         assertThat(result.upcomingLessons.map { it.bookingId }).containsExactly(2, 3)
     }
 
     @Test
     fun `RF05_aMissingStudentIsNotFound`() {
-        every { students.findProfile(5) } returns null
+        every { queries.findProfile(5) } returns null
 
-        assertThatThrownBy { GetStudent(students, clock).get(5) }.isInstanceOf(StudentNotFound::class.java)
+        assertThatThrownBy { GetStudent(queries, clock).get(5) }.isInstanceOf(StudentNotFound::class.java)
     }
 
     @Test
     fun `RF05_listingPassesTheFilterToThePort`() {
         val filter = StudentFilter(enrollmentType = EnrollmentType.DROP_IN, slotId = 3)
-        every { students.findAll(filter) } returns emptyList()
+        every { queries.findAll(filter) } returns emptyList()
 
-        assertThat(ListStudents(students).list(filter)).isEmpty()
-        verify(exactly = 1) { students.findAll(filter) }
+        assertThat(ListStudents(queries).list(filter)).isEmpty()
+        verify(exactly = 1) { queries.findAll(filter) }
     }
 }

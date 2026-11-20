@@ -5,10 +5,11 @@ import ar.melocoton.auth.domain.AccountInvited
 import ar.melocoton.auth.domain.NewAccount
 import ar.melocoton.shared.application.port.DomainEvents
 import ar.melocoton.shared.domain.WorkshopTime
+import ar.melocoton.students.application.port.StudentProfile
+import ar.melocoton.students.application.port.StudentQueries
 import ar.melocoton.students.application.port.StudentRepository
 import ar.melocoton.students.domain.EnrollmentType
 import ar.melocoton.students.domain.NewStudent
-import ar.melocoton.students.domain.StudentProfile
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
@@ -23,6 +24,7 @@ import java.time.LocalDate
 class CreateStudent(
     private val accounts: UserAccountRepository,
     private val students: StudentRepository,
+    private val studentQueries: StudentQueries,
     private val events: DomainEvents,
     private val clock: Clock,
 ) {
@@ -42,6 +44,6 @@ class CreateStudent(
         val account = accounts.create(NewAccount.student(new.name, new.email, new.phone, now))
         students.create(new.toStudent(account.id))
         events.publish(AccountInvited(account.id, now))
-        return checkNotNull(students.findProfileWithLessons(account.id, WorkshopTime.now(clock))) { "Student ${account.id} was just created" }
+        return checkNotNull(studentQueries.findProfileWithLessons(account.id, WorkshopTime.now(clock))) { "Student ${account.id} was just created" }
     }
 }

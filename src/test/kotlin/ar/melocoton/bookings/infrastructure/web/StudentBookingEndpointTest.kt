@@ -528,10 +528,13 @@ class StudentBookingEndpointTest(
         // Upcoming, earlier than the Tuesday of the same week: a Thursday at 18:00 today.
         val evening = slot(day = 4, start = "18:00", end = "20:00")
         val eveningBooking = fixtures.booking(studentId, evening, type = "DROP_IN", date = LocalDate.of(2026, 11, 19))
+        // Same date as the first FIXED lesson, on another Tuesday slot that starts earlier: it must come first.
+        val morning = slot(day = 2, start = "09:00", end = "11:00")
+        val morningBooking = fixtures.booking(studentId, morning, type = "DROP_IN", date = LocalDate.of(2026, 11, 24))
 
         val response = profile(studentId).andExpect {
             status { isOk() }
-            jsonPath("$.upcomingLessons.length()") { value(11) }
+            jsonPath("$.upcomingLessons.length()") { value(12) }
             jsonPath("$.upcomingLessons[0].bookingId") { value(eveningBooking) }
             jsonPath("$.upcomingLessons[0].lessonDate") { value("2026-11-19") }
             jsonPath("$.upcomingLessons[0].slotId") { value(evening) }
@@ -539,9 +542,14 @@ class StudentBookingEndpointTest(
             jsonPath("$.upcomingLessons[0].startTime") { value("18:00") }
             jsonPath("$.upcomingLessons[0].endTime") { value("20:00") }
             jsonPath("$.upcomingLessons[0].type") { value("DROP_IN") }
+            jsonPath("$.upcomingLessons[1].bookingId") { value(morningBooking) }
             jsonPath("$.upcomingLessons[1].lessonDate") { value("2026-11-24") }
-            jsonPath("$.upcomingLessons[1].dayOfWeek") { value(2) }
-            jsonPath("$.upcomingLessons[1].type") { value("FIXED") }
+            jsonPath("$.upcomingLessons[1].startTime") { value("09:00") }
+            jsonPath("$.upcomingLessons[1].type") { value("DROP_IN") }
+            jsonPath("$.upcomingLessons[2].lessonDate") { value("2026-11-24") }
+            jsonPath("$.upcomingLessons[2].dayOfWeek") { value(2) }
+            jsonPath("$.upcomingLessons[2].startTime") { value("18:00") }
+            jsonPath("$.upcomingLessons[2].type") { value("FIXED") }
         }.andReturn().response.contentAsString
 
         val dates = json.readTree(response)["upcomingLessons"].values().map { it["lessonDate"].asString() }

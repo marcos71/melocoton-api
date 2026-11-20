@@ -1,13 +1,13 @@
 package ar.melocoton.students.infrastructure.web
 
+import ar.melocoton.bookings.domain.BookingType
 import ar.melocoton.shared.domain.PersonName
 import ar.melocoton.shared.infrastructure.web.EMAIL_WITH_DOMAIN_DOT
+import ar.melocoton.students.application.port.FixedSlotSummary
+import ar.melocoton.students.application.port.StudentProfile
+import ar.melocoton.students.application.port.StudentSummary
+import ar.melocoton.students.application.port.UpcomingLesson
 import ar.melocoton.students.domain.EnrollmentType
-import ar.melocoton.students.domain.FixedSlotSummary
-import ar.melocoton.students.domain.StudentProfile
-import ar.melocoton.students.domain.StudentSummary
-import ar.melocoton.students.domain.UpcomingLesson
-import ar.melocoton.students.domain.UpcomingLessonType
 import com.fasterxml.jackson.annotation.JsonAnySetter
 import io.swagger.v3.oas.annotations.media.Schema
 import jakarta.validation.constraints.Email
@@ -111,7 +111,7 @@ data class UpcomingLessonResponse(
     val startTime: LocalTime,
     @field:Schema(type = "string", example = TIME_EXAMPLE, description = "HH:mm")
     val endTime: LocalTime,
-    val type: UpcomingLessonType,
+    val type: BookingType,
 )
 
 fun UpcomingLesson.toResponse() = UpcomingLessonResponse(

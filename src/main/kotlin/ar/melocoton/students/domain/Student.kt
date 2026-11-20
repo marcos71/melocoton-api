@@ -150,51 +150,6 @@ class StudentChange(name: String?, phone: String?) {
     }
 }
 
-/** The fixed slot of a student, as the screens show it (D-26). */
-data class FixedSlotSummary(val id: Long, val dayOfWeek: DayOfWeek, val startTime: LocalTime, val endTime: LocalTime)
-
-/** A row of the students list (CU-02, RF-05). */
-data class StudentSummary(
-    val id: Long,
-    val name: String,
-    val enrollmentType: EnrollmentType,
-    val fixedSlot: FixedSlotSummary?,
-    val active: Boolean,
-)
-
-/** A student's profile data (CU-02, DI-46). Upcoming classes and payment standing come with their iterations. */
-data class StudentProfile(
-    val id: Long,
-    val name: String,
-    val email: String,
-    val phone: String,
-    val active: Boolean,
-    val enrollmentType: EnrollmentType,
-    val monthlyStartDate: LocalDate?,
-    val fixedSlot: FixedSlotSummary?,
-    /** Scheduled classes that have not started, by date and start time (DI-46). */
-    val upcomingLessons: List<UpcomingLesson> = emptyList(),
-)
-
-/** How a booking was made; the students module keeps its own copy so the two domains stay independent (DI-21). */
-enum class UpcomingLessonType { FIXED, DROP_IN, MAKEUP }
-
-/** A scheduled class of a student (DI-46): a booking with its slot's day and time. */
-data class UpcomingLesson(
-    val bookingId: Long,
-    val lessonDate: LocalDate,
-    val slotId: Long,
-    val dayOfWeek: DayOfWeek,
-    val startTime: LocalTime,
-    val endTime: LocalTime,
-    val type: UpcomingLessonType,
-)
-
-/** The lessons that have not started at [now] (workshop zone), ordered by date and then start time. */
-fun List<UpcomingLesson>.notStarted(now: LocalDateTime): List<UpcomingLesson> =
-    filter { LocalDateTime.of(it.lessonDate, it.startTime).isAfter(now) }
-        .sortedWith(compareBy({ it.lessonDate }, { it.startTime }, { it.bookingId }))
-
 private fun requireName(value: String): String = requireText(value, "El nombre").also {
     if (it.length > PersonName.MAX_LENGTH) {
         throw InvalidStudent("El nombre puede tener hasta ${PersonName.MAX_LENGTH} caracteres.")

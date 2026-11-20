@@ -5,10 +5,7 @@ import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatCode
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
-import java.time.DayOfWeek
 import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.LocalTime
 
 class StudentBookingRulesTest {
 
@@ -65,24 +62,5 @@ class StudentBookingRulesTest {
         assertThat(monthly(slot = 3).hasFixedSlotToFill).isTrue()
         assertThat(monthly().hasFixedSlotToFill).isFalse()
         assertThat(monthly(active = false, slot = 3).hasFixedSlotToFill).isFalse()
-    }
-
-    @Test
-    fun `DI46_upcomingLessonsDropTheOnesThatStartedAndAreOrderedByDateThenTime`() {
-        val now = LocalDateTime.of(2026, 11, 19, 12, 0)
-        fun lesson(id: Long, date: String, start: String) = UpcomingLesson(
-            id, LocalDate.parse(date), 1, DayOfWeek.TUESDAY, LocalTime.parse(start), LocalTime.parse(start).plusHours(2),
-            UpcomingLessonType.FIXED,
-        )
-
-        val result = listOf(
-            lesson(1, "2026-11-24", "18:00"),
-            lesson(2, "2026-11-19", "11:59"),
-            lesson(3, "2026-11-19", "12:00"),
-            lesson(4, "2026-11-19", "12:01"),
-            lesson(5, "2026-11-24", "10:00"),
-        ).notStarted(now)
-
-        assertThat(result.map { it.bookingId }).containsExactly(4, 5, 1)
     }
 }
