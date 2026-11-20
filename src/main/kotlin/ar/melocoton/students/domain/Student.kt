@@ -3,6 +3,7 @@ package ar.melocoton.students.domain
 import ar.melocoton.shared.domain.PersonName
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 
 /** How a student attends (RN-03). */
@@ -26,9 +27,14 @@ data class StudentFilter(
 class Student(
     val userId: Long,
     val enrollmentType: EnrollmentType,
-    val fixedSlotId: Long?,
+    fixedSlotId: Long?,
     val monthlyStartDate: LocalDate?,
+    /** The account state (`app_user.active`); a new student is active. */
+    val active: Boolean = true,
 ) {
+    var fixedSlotId: Long? = fixedSlotId
+        private set
+
     init {
         when (enrollmentType) {
             EnrollmentType.MONTHLY -> require(monthlyStartDate != null) { "A monthly student needs a start date" }
@@ -37,6 +43,50 @@ class Student(
                 require(fixedSlotId == null) { "A drop-in student has no fixed slot" }
             }
         }
+    }
+
+    /** True when fixed bookings are generated for this student: active, monthly and with a fixed slot (RF-64). */
+    val hasFixedSlotToFill: Boolean
+        get() = active && enrollmentType == EnrollmentType.MONTHLY && fixedSlotId != null
+
+    /**
+     * Only an active monthly student has a fixed slot (RN-03, RF-08, DI-27).
+     *
+     * @throws EnrollmentTypeMismatch the student is drop-in
+     * @throws StudentInactive the student is inactive
+     */
+    fun requireCanHaveFixedSlot() {
+        if (enrollmentType != EnrollmentType.MONTHLY) {
+            throw EnrollmentTypeMismatch("Solo un alumno mensual tiene turno fijo.")
+        }
+        if (!active) throw StudentInactive()
+    }
+
+    /**
+     * Only an active drop-in student books drop-in classes (RN-03, RF-09, DI-44).
+     *
+     * @throws EnrollmentTypeMismatch the student is monthly
+     * @throws StudentInactive the student is inactive
+     */
+    fun requireCanBookDropIn() {
+        if (enrollmentType != EnrollmentType.DROP_IN) {
+            throw EnrollmentTypeMismatch("La clase suelta es solo para alumnos de clase suelta.")
+        }
+        if (!active) throw StudentInactive()
+    }
+
+    /**
+     * Sets the fixed slot (RF-08, DI-27) and returns the previous one, null when there was none.
+     * Assigning the slot the student already has is allowed.
+     *
+     * @throws EnrollmentTypeMismatch the student is drop-in
+     * @throws StudentInactive the student is inactive
+     */
+    fun assignFixedSlot(slotId: Long): Long? {
+        requireCanHaveFixedSlot()
+        val previous = fixedSlotId
+        fixedSlotId = slotId
+        return previous
     }
 }
 
@@ -99,30 +149,6 @@ class StudentChange(name: String?, phone: String?) {
         if (name == null && phone == null) throw InvalidStudent("Tenés que indicar al menos un dato para cambiar.")
     }
 }
-
-/** The fixed slot of a student, as the screens show it (D-26). */
-data class FixedSlotSummary(val id: Long, val dayOfWeek: DayOfWeek, val startTime: LocalTime, val endTime: LocalTime)
-
-/** A row of the students list (CU-02, RF-05). */
-data class StudentSummary(
-    val id: Long,
-    val name: String,
-    val enrollmentType: EnrollmentType,
-    val fixedSlot: FixedSlotSummary?,
-    val active: Boolean,
-)
-
-/** A student's profile data (CU-02, DI-46). Upcoming classes and payment standing come with their iterations. */
-data class StudentProfile(
-    val id: Long,
-    val name: String,
-    val email: String,
-    val phone: String,
-    val active: Boolean,
-    val enrollmentType: EnrollmentType,
-    val monthlyStartDate: LocalDate?,
-    val fixedSlot: FixedSlotSummary?,
-)
 
 private fun requireName(value: String): String = requireText(value, "El nombre").also {
     if (it.length > PersonName.MAX_LENGTH) {

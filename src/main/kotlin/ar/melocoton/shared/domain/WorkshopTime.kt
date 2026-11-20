@@ -1,5 +1,7 @@
 package ar.melocoton.shared.domain
 
+import java.time.Clock
+import java.time.LocalDateTime
 import java.time.ZoneId
 
 /**
@@ -9,4 +11,7 @@ import java.time.ZoneId
  */
 object WorkshopTime {
     val ZONE: ZoneId = ZoneId.of("America/Argentina/Buenos_Aires")
+
+    /** The current date and time in the workshop zone, to hand to the domain. */
+    fun now(clock: Clock): LocalDateTime = LocalDateTime.ofInstant(clock.instant(), ZONE)
 }

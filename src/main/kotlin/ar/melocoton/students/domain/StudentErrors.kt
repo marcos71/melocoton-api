@@ -16,3 +16,17 @@ class StudentNotFound : BusinessRuleViolation(
     message = "No existe ese alumno.",
     kind = BusinessErrorKind.NOT_FOUND,
 )
+
+/** The action does not fit the student's enrollment type: a fixed slot is only for monthly, a drop-in class only for drop-in (RN-03, DI-44). */
+class EnrollmentTypeMismatch(message: String) : BusinessRuleViolation(
+    code = "enrollment_type_mismatch",
+    message = message,
+    kind = BusinessErrorKind.CONFLICT,
+)
+
+/** The student is inactive: no slots or bookings are given to them. */
+class StudentInactive : BusinessRuleViolation(
+    code = "student_inactive",
+    message = "El alumno está inactivo.",
+    kind = BusinessErrorKind.CONFLICT,
+)

@@ -27,7 +27,8 @@ class SchemaConstraintsTest(@Autowired private val jdbc: JdbcTemplate) {
         val slot = f.slot()
         val student = f.monthlyStudent(slotId = slot)
         val absence = f.booking(student, slot, status = "ABSENT_RECOVERABLE")
-        f.booking(student, slot, type = "MAKEUP", originalBookingId = absence)
+        // A different date: a student has one active booking per lesson (V3, DI-41).
+        f.booking(student, slot, type = "MAKEUP", originalBookingId = absence, date = java.time.LocalDate.of(2026, 12, 15))
         f.makeupRequest(student, absence, slot)
         val piece = f.piece(student)
         jdbc.update(
@@ -184,7 +185,7 @@ class SchemaConstraintsTest(@Autowired private val jdbc: JdbcTemplate) {
         val slot = f.slot()
         val student = f.monthlyStudent()
         val absence1 = f.booking(student, slot, status = "ABSENT_RECOVERABLE")
-        val absence2 = f.booking(student, slot, status = "ABSENT_RECOVERABLE")
+        val absence2 = f.booking(student, slot, status = "ABSENT_RECOVERABLE", date = java.time.LocalDate.of(2026, 12, 8))
         f.makeupRequest(student, absence1, slot, status = "PENDING")
 
         assertFailsWithSqlState(UNIQUE_VIOLATION) { f.makeupRequest(student, absence2, slot, status = "PENDING") }
