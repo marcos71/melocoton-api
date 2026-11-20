@@ -267,6 +267,18 @@ class StudentEndpointTest(
     }
 
     @Test
+    fun `DI34_nonNumericIdIsNotFound`() {
+        get(lead, "abc").isNotFound()
+        mvc.patch("/api/v1/students/abc") {
+            header(HttpHeaders.AUTHORIZATION, "Bearer $lead")
+            contentType = MediaType.APPLICATION_JSON
+            content = "{}"
+        }.isNotFound()
+        get(tokenFor(Role.STUDENT), "abc").isNotFound()
+        get(null, "abc").andExpect { status { isUnauthorized() } }
+    }
+
+    @Test
     fun `RF05_anInvalidFilterIsAValidationError`() {
         val token = lead
         list(token, "?status=SOMETIMES").isValidationError()

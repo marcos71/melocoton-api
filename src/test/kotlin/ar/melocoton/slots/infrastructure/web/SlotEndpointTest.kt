@@ -243,6 +243,25 @@ class SlotEndpointTest(
     }
 
     @Test
+    fun `DI34_nonNumericIdIsNotFound`() {
+        val lead = lead
+        mvc.get("/api/v1/slots/abc") {
+            header(HttpHeaders.AUTHORIZATION, "Bearer $lead")
+        }.andExpect {
+            status { isNotFound() }
+            jsonPath("$.error.code") { value("not_found") }
+        }
+        mvc.patch("/api/v1/slots/abc") {
+            header(HttpHeaders.AUTHORIZATION, "Bearer $lead")
+            contentType = MediaType.APPLICATION_JSON
+            content = "{}"
+        }.andExpect {
+            status { isNotFound() }
+            jsonPath("$.error.code") { value("not_found") }
+        }
+    }
+
+    @Test
     fun `DI43_aFutureLessonAboveTheCapacityShowsAsOverbooked`() {
         val lead = lead
         val id = createdId(lead, body(capacity = 2))

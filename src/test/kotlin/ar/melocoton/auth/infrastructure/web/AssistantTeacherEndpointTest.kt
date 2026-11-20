@@ -243,6 +243,16 @@ class AssistantTeacherEndpointTest(
     }
 
     @Test
+    fun `DI34_nonNumericIdIsNotFound`() {
+        mvc.post("/api/v1/assistant-teachers/abc/deactivate") {
+            header(HttpHeaders.AUTHORIZATION, "Bearer ${leadToken()}")
+        }.andExpect {
+            status { isNotFound() }
+            jsonPath("$.error.code") { value("not_found") }
+        }
+    }
+
+    @Test
     fun `CP22_studentsAndAssistantTeachersGetForbiddenOnEveryAssistantTeacherEndpoint`() {
         val (target, _) = user(Role.ASSISTANT_TEACHER)
         val (studentId, _) = user(Role.STUDENT)

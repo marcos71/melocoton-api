@@ -17,6 +17,7 @@ import org.springframework.web.HttpRequestMethodNotSupportedException
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.MissingServletRequestParameterException
 import org.springframework.web.bind.annotation.ExceptionHandler
+import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.HandlerMethodValidationException
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
@@ -39,11 +40,22 @@ class GlobalExceptionHandler(private val securityErrors: SecurityErrorResponses)
         MethodArgumentNotValidException::class,
         HandlerMethodValidationException::class,
         HttpMessageNotReadableException::class,
-        MethodArgumentTypeMismatchException::class,
         MissingServletRequestParameterException::class,
     )
     fun invalidRequest(e: Exception) =
         respond(HttpStatus.BAD_REQUEST, "validation_error", "Los datos enviados no son válidos.")
+
+    /**
+     * A path variable that cannot be converted (for example a non-numeric id) names a resource that
+     * does not exist: 404. A bad query parameter stays a 400 validation error.
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException::class)
+    fun typeMismatch(e: MethodArgumentTypeMismatchException): ResponseEntity<ErrorResponse> =
+        if (e.parameter.hasParameterAnnotation(PathVariable::class.java)) {
+            respond(HttpStatus.NOT_FOUND, "not_found", "No encontramos lo que buscás.")
+        } else {
+            invalidRequest(e)
+        }
 
     @ExceptionHandler(NoResourceFoundException::class)
     fun notFound(e: NoResourceFoundException) =
