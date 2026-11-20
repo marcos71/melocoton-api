@@ -1,15 +1,11 @@
 package ar.melocoton.students.application
 
-import ar.melocoton.auth.application.port.AccountLinkRepository
-import ar.melocoton.auth.application.port.AccountLinkSender
-import ar.melocoton.auth.application.port.AccountLinkTokens
 import ar.melocoton.auth.application.port.UserAccountRepository
-import ar.melocoton.auth.domain.AccountLink
-import ar.melocoton.auth.domain.AccountLinkPurpose
+import ar.melocoton.auth.domain.AccountInvited
 import ar.melocoton.auth.domain.EmailAlreadyUsed
 import ar.melocoton.auth.domain.NewAccount
 import ar.melocoton.auth.domain.UserAccount
-import ar.melocoton.shared.application.port.AfterCommit
+import ar.melocoton.shared.application.port.DomainEvents
 import ar.melocoton.shared.domain.Role
 import ar.melocoton.students.application.port.StudentRepository
 import ar.melocoton.students.domain.EnrollmentType
@@ -30,7 +26,6 @@ import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import java.time.Clock
-import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -44,18 +39,7 @@ class StudentUseCasesTest {
 
     private val accounts = mockk<UserAccountRepository>()
     private val students = mockk<StudentRepository>()
-    private val links = mockk<AccountLinkRepository>()
-    private val sender = mockk<AccountLinkSender>()
-    private val afterCommit = mockk<AfterCommit>()
-    private val tokens = mockk<AccountLinkTokens> {
-        every { generate() } returns "raw-token"
-        every { hash("raw-token") } returns "hash-of-raw-token"
-    }
-
-    /** Actions registered for after the commit; a rollback is simply never running them. */
-    private val pending = mutableListOf<() -> Unit>()
-
-    private fun commit() = pending.forEach { it() }
+    private val events = mockk<DomainEvents>()
 
     private fun account(name: String = "Lucía", phone: String = "1155550000") = UserAccount(
         id = 9, name = name, email = "lucia@test.local", phone = phone, role = Role.STUDENT,
@@ -67,27 +51,23 @@ class StudentUseCasesTest {
         enrollmentType = type, monthlyStartDate = start, fixedSlot = null,
     )
 
-    private fun createStudent() = CreateStudent(accounts, students, links, tokens, sender, afterCommit, clock)
+    private fun createStudent() = CreateStudent(accounts, students, events, clock)
 
     private fun stubCreation(createdAccount: io.mockk.CapturingSlot<NewAccount> = slot()) {
         every { accounts.create(capture(createdAccount)) } answers { account() }
         every { students.create(any()) } just runs
-        every { links.save(any()) } just runs
-        every { afterCommit.run(any()) } answers { pending += firstArg<() -> Unit>() }
-        every { sender.send(any(), any(), any()) } just runs
+        every { events.publish(any()) } just runs
         every { students.findProfile(9) } returns profile()
     }
 
     // ---- CreateStudent ----
 
     @Test
-    fun `RF04_creatingAStudentSavesTheAccountTheStudentAndTheInvitationAndSendsItAfterTheCommit`() {
+    fun `RF04_creatingAStudentSavesTheAccountAndTheStudentAndPublishesAccountInvited`() {
         val newAccount = slot<NewAccount>()
         val student = slot<Student>()
-        val link = slot<AccountLink>()
         stubCreation(newAccount)
         every { students.create(capture(student)) } just runs
-        every { links.save(capture(link)) } just runs
 
         val result = createStudent().create(" Lucía ", " lucia@test.local ", "1155550000", EnrollmentType.MONTHLY, null)
 
@@ -98,19 +78,11 @@ class StudentUseCasesTest {
         assertThat(student.captured.fixedSlotId).isNull()
         // The workshop's today, not the UTC date.
         assertThat(student.captured.monthlyStartDate).isEqualTo(today)
-        assertThat(link.captured.userId).isEqualTo(9)
-        assertThat(link.captured.purpose).isEqualTo(AccountLinkPurpose.INVITATION)
-        assertThat(Duration.between(link.captured.createdAt, link.captured.expiresAt)).isEqualTo(Duration.ofDays(7))
         verifyOrder {
             accounts.create(any())
             students.create(any())
-            links.save(any())
-            afterCommit.run(any())
+            events.publish(AccountInvited(9, now))
         }
-        // Nothing is sent until the transaction commits.
-        verify(exactly = 0) { sender.send(any(), any(), any()) }
-        commit()
-        verify(exactly = 1) { sender.send(match { it.id == 9L }, AccountLinkPurpose.INVITATION, "raw-token") }
         assertThat(result.id).isEqualTo(9)
     }
 
@@ -135,10 +107,11 @@ class StudentUseCasesTest {
 
         verify(exactly = 0) { accounts.create(any()) }
         verify(exactly = 0) { students.create(any()) }
+        verify(exactly = 0) { events.publish(any()) }
     }
 
     @Test
-    fun `RF04_aDuplicateEmailSavesAndSendsNothing`() {
+    fun `RF04_aDuplicateEmailSavesAndPublishesNothing`() {
         every { accounts.create(any()) } throws EmailAlreadyUsed()
 
         assertThatThrownBy {
@@ -146,20 +119,7 @@ class StudentUseCasesTest {
         }.isInstanceOf(EmailAlreadyUsed::class.java)
 
         verify(exactly = 0) { students.create(any()) }
-        verify(exactly = 0) { links.save(any()) }
-        verify(exactly = 0) { afterCommit.run(any()) }
-    }
-
-    @Test
-    fun `RF04_ifSendingFailsAfterTheCommitTheStudentIsStillCreated`() {
-        stubCreation()
-        every { sender.send(any(), any(), any()) } throws IllegalStateException("smtp down")
-
-        val result = createStudent().create("Lucía", "lucia@test.local", "1155550000", EnrollmentType.MONTHLY, null)
-
-        assertThat(result.id).isEqualTo(9)
-        commit() // the failure is logged, not thrown
-        verify(exactly = 1) { sender.send(any(), any(), any()) }
+        verify(exactly = 0) { events.publish(any()) }
     }
 
     // ---- UpdateStudent ----
