@@ -10,7 +10,7 @@ import java.time.LocalDateTime
 /**
  * The step that assigning a fixed slot (RF-08) and extending the rolling window (RF-64) share: store the
  * fixed bookings a student is missing in a slot up to the window end (DI-42). It is a plain helper that
- * each use case builds with its port, as `AccountInvitations` is; a use case never injects another one.
+ * each use case builds with its port; a use case never injects another one.
  * The caller holds the student and slot locks.
  */
 internal class FixedBookingGeneration(private val bookings: BookingRepository) {
