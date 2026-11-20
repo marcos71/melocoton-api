@@ -64,15 +64,22 @@ class BookingRepositoryJpa(
         }
     }
 
-    override fun insertFixedIfAbsent(studentId: Long, slotId: Long, lessonDates: Collection<LocalDate>): Int =
-        lessonDates.sumOf { date ->
-            jdbc.update(
+    override fun insertFixedIfAbsent(studentId: Long, slotId: Long, lessonDates: Collection<LocalDate>): Int {
+        if (lessonDates.isEmpty()) return 0
+        // One multi-row statement: its update count is exact (a JDBC batch may report "no info" per row).
+        return jdbc.update { connection ->
+            val dates = lessonDates.sorted().map { java.sql.Date.valueOf(it) }.toTypedArray()
+            connection.prepareStatement(
                 """INSERT INTO booking (student_id, slot_id, lesson_date, type, status)
-                   VALUES (?, ?, ?, 'FIXED', 'SCHEDULED')
+                   SELECT ?, ?, d, 'FIXED', 'SCHEDULED' FROM unnest(?::date[]) AS d
                    ON CONFLICT (student_id, slot_id, lesson_date) WHERE status <> 'CANCELLED' DO NOTHING""",
-                studentId, slotId, date,
-            )
+            ).apply {
+                setLong(1, studentId)
+                setLong(2, slotId)
+                setArray(3, connection.createArrayOf("date", dates))
+            }
         }
+    }
 
     override fun cancelScheduledFixed(studentId: Long, slotId: Long, fromDate: LocalDate, reason: CancellationReason): Int =
         jdbc.update(

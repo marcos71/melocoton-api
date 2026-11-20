@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit
 @Import(FixedClockTestConfig::class)
 class BookingConcurrencyTest(
     @Autowired private val bookDropInClass: BookDropInClass,
+    @Autowired private val cancelDropInClass: CancelDropInClass,
     @Autowired private val assignFixedSlot: AssignFixedSlot,
     @Autowired private val extendFixedBookingWindow: ExtendFixedBookingWindow,
     @Autowired private val jdbc: JdbcTemplate,
@@ -70,6 +71,40 @@ class BookingConcurrencyTest(
                 assertThat(
                     jdbc.queryForObject("SELECT count(*) FROM booking WHERE slot_id = ? AND type = 'DROP_IN'", Int::class.java, slotId),
                 ).isEqualTo(1)
+            } finally {
+                jdbc.update("UPDATE slot SET active = false WHERE id = ?", slotId)
+            }
+        }
+    }
+
+    @Test
+    fun `CP01_cancellingADropInAndBookingTheFreedPlaceAtTheSameTimeLeavesNoDeadlockAndRespectsCapacity`() {
+        repeat(5) {
+            val slotId = fixtures.slot(capacity = 1)
+            try {
+                val studentA = fixtures.dropInStudent()
+                val studentB = fixtures.dropInStudent()
+                val bookingA = fixtures.booking(studentA, slotId, type = "DROP_IN", date = lessonDate)
+
+                val outcomes = concurrently(
+                    listOf(
+                        { cancelDropInClass.cancel(studentA, bookingA); Unit },
+                        { bookDropInClass.book(studentB, slotId, lessonDate); Unit },
+                    ),
+                )
+
+                val (cancelOutcome, bookOutcome) = outcomes
+                assertThat(cancelOutcome.exceptionOrNull()).describedAs("cancel: %s", outcomes).isNull()
+                val statusA = jdbc.queryForObject("SELECT status FROM booking WHERE id = ?", String::class.java, bookingA)
+                assertThat(activeBookings(slotId)).isLessThanOrEqualTo(1)
+                if (bookOutcome.isSuccess) {
+                    assertThat(statusA).isEqualTo("CANCELLED")
+                    assertThat(activeBookings(slotId)).isEqualTo(1)
+                } else {
+                    assertThat(bookOutcome.exceptionOrNull()).describedAs("book: %s", outcomes).isInstanceOf(CapacityFull::class.java)
+                    assertThat(statusA).isEqualTo("CANCELLED")
+                    assertThat(activeBookings(slotId)).isZero()
+                }
             } finally {
                 jdbc.update("UPDATE slot SET active = false WHERE id = ?", slotId)
             }
