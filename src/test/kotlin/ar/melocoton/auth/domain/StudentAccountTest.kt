@@ -1,7 +1,9 @@
 package ar.melocoton.auth.domain
 
 import ar.melocoton.shared.domain.Role
+import ar.melocoton.shared.domain.PersonName
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import java.time.Instant
 
@@ -39,5 +41,32 @@ class StudentAccountTest {
         assertThat(account.name).isEqualTo("Lucía G.")
         assertThat(account.phone).isEqualTo("1166667777")
         assertThat(account.email).isEqualTo("lucia@test.local")
+    }
+
+    @Test
+    fun `RF04_anAccountCannotBeBuiltWithABlankOrTooLongNameOrABlankPhone`() {
+        val max = "a".repeat(PersonName.MAX_LENGTH)
+
+        assertThat(NewAccount.student(max, "a@test.local", "1", now).name).isEqualTo(max)
+        assertThatThrownBy { NewAccount.student("  ", "a@test.local", "1", now) }.isInstanceOf(IllegalArgumentException::class.java)
+        assertThatThrownBy { NewAccount.student(max + "a", "a@test.local", "1", now) }.isInstanceOf(IllegalArgumentException::class.java)
+        assertThatThrownBy { NewAccount.student("Lucía", "a@test.local", " ", now) }.isInstanceOf(IllegalArgumentException::class.java)
+        assertThatThrownBy { NewAccount.assistantTeacher("", "a@test.local", "1", now) }.isInstanceOf(IllegalArgumentException::class.java)
+    }
+
+    @Test
+    fun `DI46_changingTheContactTrimsAndRejectsBlankOrTooLongValuesWithoutChangingAnything`() {
+        val account = account()
+        val max = "a".repeat(PersonName.MAX_LENGTH)
+
+        account.changeContact(name = " $max ", phone = " 1166667777 ")
+        assertThat(account.name).isEqualTo(max)
+        assertThat(account.phone).isEqualTo("1166667777")
+
+        assertThatThrownBy { account.changeContact(name = " ", phone = null) }.isInstanceOf(IllegalArgumentException::class.java)
+        assertThatThrownBy { account.changeContact(name = max + "a", phone = null) }.isInstanceOf(IllegalArgumentException::class.java)
+        assertThatThrownBy { account.changeContact(name = "Otra", phone = "") }.isInstanceOf(IllegalArgumentException::class.java)
+        assertThat(account.name).isEqualTo(max)
+        assertThat(account.phone).isEqualTo("1166667777")
     }
 }

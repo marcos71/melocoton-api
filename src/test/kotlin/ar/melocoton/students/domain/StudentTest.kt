@@ -1,6 +1,7 @@
 package ar.melocoton.students.domain
 
 import ar.melocoton.shared.domain.BusinessErrorKind
+import ar.melocoton.shared.domain.PersonName
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
@@ -61,6 +62,29 @@ class StudentTest {
         assertThatThrownBy { new(name = "  ") }.isInstanceOf(InvalidStudent::class.java)
         assertThatThrownBy { new(email = "") }.isInstanceOf(InvalidStudent::class.java)
         assertThatThrownBy { new(phone = " ") }.isInstanceOf(InvalidStudent::class.java)
+    }
+
+    @Test
+    fun `RF04_aNameOfUpTo80CharactersIsValidAndOneLongerIsNot`() {
+        val max = "a".repeat(PersonName.MAX_LENGTH)
+
+        assertThat(new(name = max).name).isEqualTo(max)
+        assertThat(new(name = " $max ").name).isEqualTo(max)
+        assertThatThrownBy { new(name = max + "a") }.isInstanceOfSatisfying(InvalidStudent::class.java) {
+            assertThat(it.message).isEqualTo("El nombre puede tener hasta 80 caracteres.")
+            assertThat(it.code).isEqualTo("validation_error")
+            assertThat(it.kind).isEqualTo(BusinessErrorKind.INVALID)
+        }
+    }
+
+    @Test
+    fun `DI46_aChangedNameOfUpTo80CharactersIsValidAndOneLongerIsNot`() {
+        val max = "a".repeat(PersonName.MAX_LENGTH)
+
+        assertThat(StudentChange(max, null).name).isEqualTo(max)
+        assertThatThrownBy { StudentChange(max + "a", null) }.isInstanceOfSatisfying(InvalidStudent::class.java) {
+            assertThat(it.message).isEqualTo("El nombre puede tener hasta 80 caracteres.")
+        }
     }
 
     @Test

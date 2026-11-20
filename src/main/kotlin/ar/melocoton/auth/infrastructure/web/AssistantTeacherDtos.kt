@@ -1,10 +1,12 @@
 package ar.melocoton.auth.infrastructure.web
 
 import ar.melocoton.auth.domain.UserAccount
+import ar.melocoton.shared.domain.PersonName
 import ar.melocoton.shared.infrastructure.web.EMAIL_WITH_DOMAIN_DOT
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Pattern
+import jakarta.validation.constraints.Size
 
 /**
  * Body of POST /api/v1/assistant-teachers. All three are required (DI-34). The text is trimmed
@@ -12,6 +14,7 @@ import jakarta.validation.constraints.Pattern
  */
 class CreateAssistantTeacherRequest(name: String, email: String, phone: String) {
     @field:NotBlank
+    @field:Size(max = PersonName.MAX_LENGTH)
     val name: String = name.trim()
 
     // @Email alone accepts "a@b"; the pattern asks for a dot in the domain, as a person would write it.

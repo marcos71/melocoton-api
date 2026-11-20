@@ -54,9 +54,11 @@ class SecurityConfig {
                 authorize(PUBLIC_API, permitAll)
                 authorize("/api/v1/assistant-teachers/**", hasRole("LEAD_TEACHER"))
                 authorize("/api/v1/slots/**", hasRole("LEAD_TEACHER"))
-                // Only the list and numeric ids: /api/v1/students/me/** is for the student's own routes later.
-                authorize("/api/v1/students", hasRole("LEAD_TEACHER"))
-                authorize("/api/v1/students/{id:\\d+}", hasRole("LEAD_TEACHER"))
+                // /me/** is the student's own routes and must come first. Everything else under students
+                // (the bare path included: ** also matches zero segments) is the lead teacher's, so a
+                // future subpath such as /{id}/fixed-slot is closed to other roles by default.
+                authorize("/api/v1/students/me/**", hasRole("STUDENT"))
+                authorize("/api/v1/students/**", hasRole("LEAD_TEACHER"))
                 authorize("/api/**", authenticated)
                 // Outside the API: Swagger UI, the OpenAPI document and Spring's error page.
                 authorize(anyRequest, permitAll)

@@ -1,5 +1,6 @@
 package ar.melocoton.auth.domain
 
+import ar.melocoton.shared.domain.PersonName
 import ar.melocoton.shared.domain.Role
 import java.time.Duration
 import java.time.Instant
@@ -24,10 +25,10 @@ class UserAccount(
     /** Session cut-off: only tokens issued with this exact value are valid; a password change moves it (DI-28). */
     sessionsValidFrom: Instant,
 ) {
-    var name: String = name
+    var name: String = validName(name)
         private set
 
-    var phone: String = phone
+    var phone: String = validPhone(phone)
         private set
 
     var passwordHash: String? = passwordHash
@@ -97,10 +98,16 @@ class UserAccount(
         active = false
     }
 
-    /** Replaces the name and/or the phone; a null keeps the current value. The email never changes here (DI-46). */
+    /**
+     * Replaces the name and/or the phone; a null keeps the current value. The text is trimmed and must not
+     * be blank; a name has at most [PersonName.MAX_LENGTH] characters. The email never changes here (DI-46).
+     * The layers above report these cases to the person; here they are programming guards.
+     */
     fun changeContact(name: String?, phone: String?) {
-        name?.let { this.name = it }
-        phone?.let { this.phone = it }
+        val newName = name?.let { validName(it) }
+        val newPhone = phone?.let { validPhone(it) }
+        newName?.let { this.name = it }
+        newPhone?.let { this.phone = it }
     }
 
     private fun recordFailedAttempt(now: Instant) {
@@ -114,6 +121,17 @@ class UserAccount(
     }
 
     companion object {
+        /** Trims and checks a name: not blank, at most [PersonName.MAX_LENGTH] characters. */
+        fun validName(value: String): String = value.trim().also {
+            require(it.isNotEmpty()) { "The name must not be blank" }
+            require(it.length <= PersonName.MAX_LENGTH) { "The name must have at most ${PersonName.MAX_LENGTH} characters" }
+        }
+
+        /** Trims and checks a phone: any text that is not blank. */
+        fun validPhone(value: String): String = value.trim().also {
+            require(it.isNotEmpty()) { "The phone must not be blank" }
+        }
+
         /** Wrong passwords in a row that lock the account (DI-31). */
         const val MAX_FAILED_ATTEMPTS = 5
 

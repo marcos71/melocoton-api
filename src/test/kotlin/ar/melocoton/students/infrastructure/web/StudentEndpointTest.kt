@@ -100,6 +100,12 @@ class StudentEndpointTest(
         jsonPath("$.error.code") { value("validation_error") }
     }
 
+    private fun ResultActionsDsl.isValidationError(message: String) = andExpect {
+        status { isBadRequest() }
+        jsonPath("$.error.code") { value("validation_error") }
+        jsonPath("$.error.message") { value(message) }
+    }
+
     private fun ResultActionsDsl.isNotFound() = andExpect {
         status { isNotFound() }
         jsonPath("$.error.code") { value("not_found") }
@@ -181,13 +187,45 @@ class StudentEndpointTest(
     @Test
     fun `RF04_theRequiredFieldsMustBePresentAndNotBlank`() {
         val token = lead
-        create(token, body(name = "   ")).isValidationError()
-        create(token, body(phone = "")).isValidationError()
-        create(token, body(email = " ")).isValidationError()
+        create(token, body(name = "   ")).isValidationError("El nombre es obligatorio.")
+        create(token, body(name = "")).isValidationError("El nombre es obligatorio.")
+        create(token, body(phone = "")).isValidationError("El teléfono es obligatorio.")
+        create(token, body(email = " ")).isValidationError("El email es obligatorio.")
+        create(token, body(email = "")).isValidationError("El email es obligatorio.")
         create(token, body() - "name").isValidationError()
         create(token, body() - "email").isValidationError()
         create(token, body() - "phone").isValidationError()
         create(token, body() - "enrollmentType").isValidationError()
+    }
+
+    @Test
+    fun `RF04_postAndPatchAnswerTheSameForABlankName`() {
+        val token = lead
+        val id = student("Antes")
+
+        create(token, body(name = "  ")).isValidationError("El nombre es obligatorio.")
+        patch(token, id, mapOf("name" to "  ")).isValidationError("El nombre es obligatorio.")
+    }
+
+    @Test
+    fun `RF04_aNameOf80CharactersIsAcceptedAndOneOf81IsRejectedOnPostAndPatch`() {
+        val token = lead
+        val id = student("Antes")
+        val max = "a".repeat(80)
+        val tooLong = "a".repeat(81)
+
+        create(token, body(name = tooLong)).isValidationError("El nombre puede tener hasta 80 caracteres.")
+        patch(token, id, mapOf("name" to tooLong)).isValidationError("El nombre puede tener hasta 80 caracteres.")
+        create(token, body(name = max)).andExpect { status { isCreated() } }
+        patch(token, id, mapOf("name" to max)).andExpect { status { isOk() } }
+    }
+
+    @Test
+    fun `RF04_thePhoneIsFreeText`() {
+        create(lead, body(phone = "llamar a la tarde")).andExpect {
+            status { isCreated() }
+            jsonPath("$.phone") { value("llamar a la tarde") }
+        }
     }
 
     @Test
@@ -267,14 +305,17 @@ class StudentEndpointTest(
     }
 
     @Test
-    fun `DI34_nonNumericIdIsNotFound`() {
+    fun `DI34_nonNumericIdIsNotFoundForTheLeadTeacherAndForbiddenForAStudent`() {
         get(lead, "abc").isNotFound()
         mvc.patch("/api/v1/students/abc") {
             header(HttpHeaders.AUTHORIZATION, "Bearer $lead")
             contentType = MediaType.APPLICATION_JSON
             content = "{}"
         }.isNotFound()
-        get(tokenFor(Role.STUDENT), "abc").isNotFound()
+        get(tokenFor(Role.STUDENT), "abc").andExpect {
+            status { isForbidden() }
+            jsonPath("$.error.code") { value("role_not_allowed") }
+        }
         get(null, "abc").andExpect { status { isUnauthorized() } }
     }
 
@@ -404,8 +445,8 @@ class StudentEndpointTest(
         val token = lead
 
         patch(token, id, emptyMap()).isValidationError()
-        patch(token, id, mapOf("name" to "  ")).isValidationError()
-        patch(token, id, mapOf("phone" to "")).isValidationError()
+        patch(token, id, mapOf("name" to "  ")).isValidationError("El nombre es obligatorio.")
+        patch(token, id, mapOf("phone" to "")).isValidationError("El teléfono es obligatorio.")
     }
 
     @Test
@@ -435,6 +476,7 @@ class StudentEndpointTest(
                 list(token),
                 get(token, "$id"),
                 patch(token, id, mapOf("name" to "X")),
+                get(token, "1/anything"),
             ).forEach {
                 it.andExpect {
                     status { isForbidden() }
@@ -451,5 +493,10 @@ class StudentEndpointTest(
 
         assertThat(status).isNotEqualTo(403)
         assertThat(status).isEqualTo(404)
+        // and it is closed to the lead teacher
+        get(lead, "me/anything").andExpect {
+            status { isForbidden() }
+            jsonPath("$.error.code") { value("role_not_allowed") }
+        }
     }
 }

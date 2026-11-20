@@ -833,7 +833,7 @@
                 }
               }
             },
-            "description" : "validation_error: a field is missing or blank, the email is malformed, or a DROP_IN student sends a start date"
+            "description" : "validation_error: a field is missing or blank, the name has more than 80 characters, the email is malformed, or a DROP_IN student sends a start date"
           },
           "403" : {
             "content" : {
@@ -974,7 +974,7 @@
                 }
               }
             },
-            "description" : "validation_error: nothing to change, a blank value, or a field that cannot be edited"
+            "description" : "validation_error: nothing to change, a blank value, a name with more than 80 characters, or a field that cannot be edited"
           },
           "403" : {
             "content" : {
@@ -1061,7 +1061,8 @@
           },
           "name" : {
             "type" : "string",
-            "minLength" : 1
+            "maxLength" : 80,
+            "minLength" : 0
           },
           "phone" : {
             "type" : "string",
@@ -1104,8 +1105,7 @@
           "email" : {
             "type" : "string",
             "format" : "email",
-            "minLength" : 1,
-            "pattern" : "^[^@\\s]+@[^@\\s.]+(\\.[^@\\s.]+)+$"
+            "pattern" : "|^[^@\\s]+@[^@\\s.]+(\\.[^@\\s.]+)+$"
           },
           "enrollmentType" : {
             "type" : "string",
@@ -1119,11 +1119,10 @@
           },
           "name" : {
             "type" : "string",
-            "minLength" : 1
+            "maxLength" : 80
           },
           "phone" : {
-            "type" : "string",
-            "minLength" : 1
+            "type" : "string"
           }
         },
         "required" : [ "email", "enrollmentType", "name", "phone" ]
@@ -1503,7 +1502,8 @@
         "type" : "object",
         "properties" : {
           "name" : {
-            "type" : [ "string", "null" ]
+            "type" : [ "string", "null" ],
+            "maxLength" : 80
           },
           "phone" : {
             "type" : [ "string", "null" ]

@@ -1,5 +1,6 @@
 package ar.melocoton.students.domain
 
+import ar.melocoton.shared.domain.PersonName
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime
@@ -57,7 +58,7 @@ class NewStudent private constructor(
          * The email format is checked at the API boundary, as for assistant teachers.
          *
          * @param today the current date in the workshop zone
-         * @throws InvalidStudent a text is blank, or a drop-in student comes with a start date
+         * @throws InvalidStudent a text is blank, the name is longer than [PersonName.MAX_LENGTH], or a drop-in student comes with a start date
          */
         fun create(
             name: String,
@@ -67,7 +68,7 @@ class NewStudent private constructor(
             monthlyStartDate: LocalDate?,
             today: LocalDate,
         ): NewStudent {
-            val trimmedName = requireText(name, "El nombre")
+            val trimmedName = requireName(name)
             val trimmedEmail = requireText(email, "El email")
             val trimmedPhone = requireText(phone, "El teléfono")
             val startDate = when (enrollmentType) {
@@ -88,10 +89,10 @@ class NewStudent private constructor(
  * The fields a PATCH changes: name and phone only (DI-46; the email and the modality are not editable here).
  * At least one is present and none is blank; the values are trimmed.
  *
- * @throws InvalidStudent nothing to change, or a given text is blank
+ * @throws InvalidStudent nothing to change, a given text is blank, or the name is longer than [PersonName.MAX_LENGTH]
  */
 class StudentChange(name: String?, phone: String?) {
-    val name: String? = name?.let { requireText(it, "El nombre") }
+    val name: String? = name?.let { requireName(it) }
     val phone: String? = phone?.let { requireText(it, "El teléfono") }
 
     init {
@@ -122,6 +123,12 @@ data class StudentProfile(
     val monthlyStartDate: LocalDate?,
     val fixedSlot: FixedSlotSummary?,
 )
+
+private fun requireName(value: String): String = requireText(value, "El nombre").also {
+    if (it.length > PersonName.MAX_LENGTH) {
+        throw InvalidStudent("El nombre puede tener hasta ${PersonName.MAX_LENGTH} caracteres.")
+    }
+}
 
 private fun requireText(value: String, label: String): String =
     value.trim().ifEmpty { throw InvalidStudent("$label es obligatorio.") }

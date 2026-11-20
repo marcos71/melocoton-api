@@ -1,5 +1,6 @@
 package ar.melocoton.students.infrastructure.web
 
+import ar.melocoton.shared.domain.PersonName
 import ar.melocoton.shared.infrastructure.web.EMAIL_WITH_DOMAIN_DOT
 import ar.melocoton.students.domain.EnrollmentType
 import ar.melocoton.students.domain.FixedSlotSummary
@@ -8,7 +9,6 @@ import ar.melocoton.students.domain.StudentSummary
 import com.fasterxml.jackson.annotation.JsonAnySetter
 import io.swagger.v3.oas.annotations.media.Schema
 import jakarta.validation.constraints.Email
-import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Pattern
 import java.time.LocalDate
 import java.time.LocalTime
@@ -17,7 +17,7 @@ private const val TIME_EXAMPLE = "18:00"
 
 /**
  * Body of POST /api/v1/students. Name, email, phone and enrollment type are required (DI-46). The text is
- * trimmed here, before bean validation, so padded values pass and a whitespace-only one counts as blank.
+ * trimmed here; a blank or too long value is rejected by the domain with its own message.
  */
 class CreateStudentRequest(
     name: String,
@@ -32,16 +32,16 @@ class CreateStudentRequest(
     )
     val monthlyStartDate: LocalDate? = null,
 ) {
-    @field:NotBlank
+    @field:Schema(maxLength = PersonName.MAX_LENGTH)
     val name: String = name.trim()
 
-    // @Email alone accepts "a@b"; the shared pattern asks for a dot in the domain, as for assistant teachers.
-    @field:NotBlank
+    // Required, blank and length rules live in the domain (NewStudent), so POST and PATCH answer the same.
+    // The format stays here. @Email alone accepts "a@b"; the shared pattern asks for a dot in the domain,
+    // as for assistant teachers. A blank value passes both on purpose: the domain rejects it as required.
     @field:Email
-    @field:Pattern(regexp = EMAIL_WITH_DOMAIN_DOT)
+    @field:Pattern(regexp = "|$EMAIL_WITH_DOMAIN_DOT")
     val email: String = email.trim()
 
-    @field:NotBlank
     val phone: String = phone.trim()
 }
 
@@ -50,6 +50,7 @@ class CreateStudentRequest(
  * included, is rejected with 400 instead of being ignored.
  */
 class UpdateStudentRequest(
+    @field:Schema(maxLength = PersonName.MAX_LENGTH)
     val name: String? = null,
     val phone: String? = null,
 ) {

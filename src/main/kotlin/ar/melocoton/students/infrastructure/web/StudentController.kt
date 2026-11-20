@@ -53,7 +53,7 @@ class StudentController(
         ApiResponse(responseCode = "201", description = "The student, created and invited"),
         ApiResponse(
             responseCode = "400",
-            description = "validation_error: a field is missing or blank, the email is malformed, or a DROP_IN student sends a start date",
+            description = "validation_error: a field is missing or blank, the name has more than 80 characters, the email is malformed, or a DROP_IN student sends a start date",
             content = [Content(schema = Schema(implementation = ErrorResponse::class))],
         ),
         ApiResponse(
@@ -125,7 +125,7 @@ class StudentController(
         ApiResponse(responseCode = "200", description = "The student, updated"),
         ApiResponse(
             responseCode = "400",
-            description = "validation_error: nothing to change, a blank value, or a field that cannot be edited",
+            description = "validation_error: nothing to change, a blank value, a name with more than 80 characters, or a field that cannot be edited",
             content = [Content(schema = Schema(implementation = ErrorResponse::class))],
         ),
         ApiResponse(

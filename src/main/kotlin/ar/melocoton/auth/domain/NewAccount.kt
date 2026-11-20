@@ -28,9 +28,9 @@ class NewAccount private constructor(
             invited(name, email, phone, Role.STUDENT, now)
 
         private fun invited(name: String, email: String, phone: String, role: Role, now: Instant) = NewAccount(
-            name = name.trim(),
+            name = UserAccount.validName(name),
             email = email.trim(),
-            phone = phone.trim(),
+            phone = UserAccount.validPhone(phone),
             role = role,
             // PostgreSQL keeps microseconds; truncating makes the stored value equal to this one.
             sessionsValidFrom = now.truncatedTo(ChronoUnit.MICROS),

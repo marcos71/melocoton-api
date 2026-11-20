@@ -137,6 +137,14 @@ class AssistantTeacherEndpointTest(
     }
 
     @Test
+    fun `DI34_aNameOf81CharactersIsAValidationErrorAndOneOf80IsAccepted`() {
+        val lead = leadToken()
+
+        create(lead, validBody() + ("name" to "a".repeat(81))).isValidationError()
+        create(lead, validBody() + ("name" to "a".repeat(80))).andExpect { status { isCreated() } }
+    }
+
+    @Test
     fun `DI34_aPaddedEmailIsAcceptedAndStoredTrimmed`() {
         val email = "${UUID.randomUUID()}@test.local"
 
