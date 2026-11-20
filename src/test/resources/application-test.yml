@@ -2,6 +2,11 @@
 spring:
   datasource:
     url: ${TEST_DB_URL}
+    hikari:
+      # Every distinct test context keeps its own pool alive for the whole run. With the default
+      # (minimum idle = maximum size) ten contexts open ten connections each and exhaust PostgreSQL;
+      # pools now start small and grow only when a test needs more (concurrency tests).
+      minimum-idle: 1
   flyway:
     url: ${TEST_DB_URL}
     # Allowed only here: CleanTestDatabaseConfig wipes melocoton_test before migrating.

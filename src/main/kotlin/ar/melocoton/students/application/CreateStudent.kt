@@ -50,6 +50,6 @@ class CreateStudent(
         val account = accounts.create(NewAccount.student(new.name, new.email, new.phone, now))
         students.create(new.toStudent(account.id))
         invitations.issue(account, now)
-        return checkNotNull(students.findProfile(account.id)) { "Student ${account.id} was just created" }
+        return checkNotNull(students.findProfileWithLessons(account.id, WorkshopTime.now(clock))) { "Student ${account.id} was just created" }
     }
 }

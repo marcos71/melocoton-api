@@ -3,6 +3,7 @@ package ar.melocoton.students.domain
 import ar.melocoton.shared.domain.PersonName
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 
 /** How a student attends (RN-03). */
@@ -26,9 +27,14 @@ data class StudentFilter(
 class Student(
     val userId: Long,
     val enrollmentType: EnrollmentType,
-    val fixedSlotId: Long?,
+    fixedSlotId: Long?,
     val monthlyStartDate: LocalDate?,
+    /** The account state (`app_user.active`); a new student is active. */
+    val active: Boolean = true,
 ) {
+    var fixedSlotId: Long? = fixedSlotId
+        private set
+
     init {
         when (enrollmentType) {
             EnrollmentType.MONTHLY -> require(monthlyStartDate != null) { "A monthly student needs a start date" }
@@ -37,6 +43,50 @@ class Student(
                 require(fixedSlotId == null) { "A drop-in student has no fixed slot" }
             }
         }
+    }
+
+    /** True when fixed bookings are generated for this student: active, monthly and with a fixed slot (RF-64). */
+    val hasFixedSlotToFill: Boolean
+        get() = active && enrollmentType == EnrollmentType.MONTHLY && fixedSlotId != null
+
+    /**
+     * Only an active monthly student has a fixed slot (RN-03, RF-08, DI-27).
+     *
+     * @throws EnrollmentTypeMismatch the student is drop-in
+     * @throws StudentInactive the student is inactive
+     */
+    fun requireCanHaveFixedSlot() {
+        if (enrollmentType != EnrollmentType.MONTHLY) {
+            throw EnrollmentTypeMismatch("Solo un alumno mensual tiene turno fijo.")
+        }
+        if (!active) throw StudentInactive()
+    }
+
+    /**
+     * Only an active drop-in student books drop-in classes (RN-03, RF-09, DI-44).
+     *
+     * @throws EnrollmentTypeMismatch the student is monthly
+     * @throws StudentInactive the student is inactive
+     */
+    fun requireCanBookDropIn() {
+        if (enrollmentType != EnrollmentType.DROP_IN) {
+            throw EnrollmentTypeMismatch("La clase suelta es solo para alumnos de clase suelta.")
+        }
+        if (!active) throw StudentInactive()
+    }
+
+    /**
+     * Sets the fixed slot (RF-08, DI-27) and returns the previous one, null when there was none.
+     * Assigning the slot the student already has is allowed.
+     *
+     * @throws EnrollmentTypeMismatch the student is drop-in
+     * @throws StudentInactive the student is inactive
+     */
+    fun assignFixedSlot(slotId: Long): Long? {
+        requireCanHaveFixedSlot()
+        val previous = fixedSlotId
+        fixedSlotId = slotId
+        return previous
     }
 }
 
@@ -122,7 +172,28 @@ data class StudentProfile(
     val enrollmentType: EnrollmentType,
     val monthlyStartDate: LocalDate?,
     val fixedSlot: FixedSlotSummary?,
+    /** Scheduled classes that have not started, by date and start time (DI-46). */
+    val upcomingLessons: List<UpcomingLesson> = emptyList(),
 )
+
+/** How a booking was made; the students module keeps its own copy so the two domains stay independent (DI-21). */
+enum class UpcomingLessonType { FIXED, DROP_IN, MAKEUP }
+
+/** A scheduled class of a student (DI-46): a booking with its slot's day and time. */
+data class UpcomingLesson(
+    val bookingId: Long,
+    val lessonDate: LocalDate,
+    val slotId: Long,
+    val dayOfWeek: DayOfWeek,
+    val startTime: LocalTime,
+    val endTime: LocalTime,
+    val type: UpcomingLessonType,
+)
+
+/** The lessons that have not started at [now] (workshop zone), ordered by date and then start time. */
+fun List<UpcomingLesson>.notStarted(now: LocalDateTime): List<UpcomingLesson> =
+    filter { LocalDateTime.of(it.lessonDate, it.startTime).isAfter(now) }
+        .sortedWith(compareBy({ it.lessonDate }, { it.startTime }, { it.bookingId }))
 
 private fun requireName(value: String): String = requireText(value, "El nombre").also {
     if (it.length > PersonName.MAX_LENGTH) {

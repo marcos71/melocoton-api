@@ -1,5 +1,6 @@
 package ar.melocoton.bookings.infrastructure.persistence
 
+import ar.melocoton.bookings.domain.Booking
 import ar.melocoton.bookings.domain.BookingStatus
 import ar.melocoton.bookings.domain.BookingType
 import ar.melocoton.bookings.domain.CancellationReason
@@ -51,4 +52,14 @@ class BookingEntity(
 
     @Column(name = "attendance_recorded_at")
     var attendanceRecordedAt: Instant?,
+)
+
+fun BookingEntity.toDomain() = Booking(
+    id = checkNotNull(id) { "A stored booking always has an id" },
+    studentId = studentId,
+    slotId = slotId,
+    lessonDate = lessonDate,
+    type = type,
+    status = status,
+    cancellationReason = cancellationReason,
 )

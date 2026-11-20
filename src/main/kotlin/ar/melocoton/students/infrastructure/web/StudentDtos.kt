@@ -6,6 +6,8 @@ import ar.melocoton.students.domain.EnrollmentType
 import ar.melocoton.students.domain.FixedSlotSummary
 import ar.melocoton.students.domain.StudentProfile
 import ar.melocoton.students.domain.StudentSummary
+import ar.melocoton.students.domain.UpcomingLesson
+import ar.melocoton.students.domain.UpcomingLessonType
 import com.fasterxml.jackson.annotation.JsonAnySetter
 import io.swagger.v3.oas.annotations.media.Schema
 import jakarta.validation.constraints.Email
@@ -93,6 +95,33 @@ data class StudentProfileResponse(
     @field:Schema(type = "string", format = "date", description = "Only for MONTHLY students")
     val monthlyStartDate: LocalDate?,
     val fixedSlot: FixedSlotResponse?,
+    @field:Schema(description = "Scheduled classes that have not started, by date and start time")
+    val upcomingLessons: List<UpcomingLessonResponse>,
+)
+
+/** A scheduled class of the student: a booking with its slot's day and time. */
+data class UpcomingLessonResponse(
+    val bookingId: Long,
+    @field:Schema(type = "string", format = "date")
+    val lessonDate: LocalDate,
+    val slotId: Long,
+    @field:Schema(description = "ISO day of the week: 1 is Monday, 7 is Sunday")
+    val dayOfWeek: Int,
+    @field:Schema(type = "string", example = TIME_EXAMPLE, description = "HH:mm")
+    val startTime: LocalTime,
+    @field:Schema(type = "string", example = TIME_EXAMPLE, description = "HH:mm")
+    val endTime: LocalTime,
+    val type: UpcomingLessonType,
+)
+
+fun UpcomingLesson.toResponse() = UpcomingLessonResponse(
+    bookingId = bookingId,
+    lessonDate = lessonDate,
+    slotId = slotId,
+    dayOfWeek = dayOfWeek.value,
+    startTime = startTime,
+    endTime = endTime,
+    type = type,
 )
 
 fun FixedSlotSummary.toResponse() =
@@ -115,4 +144,5 @@ fun StudentProfile.toResponse() = StudentProfileResponse(
     enrollmentType = enrollmentType,
     monthlyStartDate = monthlyStartDate,
     fixedSlot = fixedSlot?.toResponse(),
+    upcomingLessons = upcomingLessons.map { it.toResponse() },
 )

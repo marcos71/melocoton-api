@@ -27,6 +27,13 @@ class SlotInactive : BusinessRuleViolation(
     kind = BusinessErrorKind.CONFLICT,
 )
 
+/** The slot is deactivated, so it takes no new bookings (RF-08, RF-09). */
+class SlotNotAcceptingBookings : BusinessRuleViolation(
+    code = "slot_inactive",
+    message = "El turno está desactivado: no admite reservas nuevas.",
+    kind = BusinessErrorKind.CONFLICT,
+)
+
 /** The slot overlaps another active slot of the same day (DI-25). */
 class SlotOverlap(conflicting: Slot) : BusinessRuleViolation(
     code = "slot_overlap",

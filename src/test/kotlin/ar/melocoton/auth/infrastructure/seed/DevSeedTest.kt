@@ -1,6 +1,7 @@
 package ar.melocoton.auth.infrastructure.seed
 
 import ar.melocoton.auth.application.port.PasswordHasher
+import ar.melocoton.bookings.application.AssignFixedSlot
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
@@ -24,11 +25,12 @@ class DevSeedTest(
     @Autowired private val jdbc: JdbcTemplate,
     @Autowired private val passwords: PasswordHasher,
     @Autowired private val context: ApplicationContext,
+    @Autowired private val assignFixedSlot: AssignFixedSlot,
 ) {
     // 2026-11-16 at 01:00 UTC is still November 15 in Buenos Aires.
     private val clock = Clock.fixed(Instant.parse("2026-11-16T01:00:00Z"), ZoneOffset.UTC)
 
-    private fun seed(password: String = PASSWORD) = DevSeed(jdbc, passwords, clock, password)
+    private fun seed(password: String = PASSWORD) = DevSeed(jdbc, passwords, clock, assignFixedSlot, password)
 
     private fun row(email: String): Map<String, Any?> = jdbc.queryForMap(
         """SELECT u.role, u.active, u.password_hash, s.enrollment_type, s.monthly_start_date
@@ -64,6 +66,31 @@ class DevSeedTest(
 
         assertThat(after).isEqualTo(if (before == 0) 2 else before)
         assertThat(jdbc.queryForObject("SELECT count(*) FROM slot", Int::class.java)).isEqualTo(after)
+    }
+
+    @Test
+    fun `RF08_theActiveMonthlySampleStudentGetsTheFirstSlotAndItsBookingsOnlyOnce`() {
+        seed().seed()
+
+        val ana = jdbc.queryForObject("SELECT id FROM app_user WHERE email = 'ana@melocoton.local'", Long::class.java)!!
+        val slotId = jdbc.queryForObject("SELECT fixed_slot_id FROM student WHERE user_id = ?", Long::class.javaObjectType, ana)
+        assertThat(slotId).isNotNull()
+        assertThat(slotId).isEqualTo(jdbc.queryForObject("SELECT min(id) FROM slot WHERE active", Long::class.java))
+        val count = { jdbc.queryForObject("SELECT count(*) FROM booking WHERE student_id = ? AND type = 'FIXED' AND status = 'SCHEDULED'", Int::class.java, ana)!! }
+        assertThat(count()).isGreaterThan(0)
+
+        val before = count()
+        seed().seed()
+
+        assertThat(count()).isEqualTo(before)
+        // Neither the drop-in student nor the inactive monthly one gets a slot.
+        assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM student s JOIN app_user u ON u.id = s.user_id " +
+                    "WHERE u.email IN ('bruno@melocoton.local', 'carla@melocoton.local') AND s.fixed_slot_id IS NOT NULL",
+                Int::class.java,
+            ),
+        ).isZero()
     }
 
     @Test

@@ -8,6 +8,8 @@ import ar.melocoton.students.domain.StudentFilter
 import ar.melocoton.students.domain.StudentProfile
 import ar.melocoton.students.domain.StudentStatusFilter
 import ar.melocoton.students.domain.StudentSummary
+import ar.melocoton.students.domain.UpcomingLesson
+import ar.melocoton.students.domain.UpcomingLessonType
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.core.RowMapper
 import org.springframework.stereotype.Repository
@@ -54,6 +56,55 @@ class StudentRepositoryJpa(
         val where = if (conditions.isEmpty()) "" else conditions.joinToString(" AND ", prefix = "WHERE ")
         return jdbc.query("$PROFILE_SELECT $where ORDER BY lower(u.name), u.id", SUMMARY_ROW, *args.toTypedArray())
     }
+
+    override fun lockById(id: Long): Student? = jdbc.query(
+        // Only the student row is locked: that is what serializes the bookings of one student.
+        """SELECT s.user_id, s.enrollment_type, s.fixed_slot_id, s.monthly_start_date, u.active
+           FROM student s JOIN app_user u ON u.id = s.user_id
+           WHERE s.user_id = ? FOR UPDATE OF s""",
+        { rs, _ ->
+            Student(
+                userId = rs.getLong("user_id"),
+                enrollmentType = EnrollmentType.valueOf(rs.getString("enrollment_type")),
+                fixedSlotId = rs.getLong("fixed_slot_id").takeUnless { rs.wasNull() },
+                monthlyStartDate = rs.getObject("monthly_start_date", LocalDate::class.java),
+                active = rs.getBoolean("active"),
+            )
+        },
+        id,
+    ).singleOrNull()
+
+    override fun saveFixedSlot(student: Student) {
+        jdbc.update("UPDATE student SET fixed_slot_id = ? WHERE user_id = ?", student.fixedSlotId, student.userId)
+    }
+
+    override fun findIdsWithActiveFixedSlot(): List<Long> = jdbc.query(
+        """SELECT s.user_id FROM student s
+           JOIN app_user u ON u.id = s.user_id
+           JOIN slot sl ON sl.id = s.fixed_slot_id
+           WHERE u.active AND sl.active AND s.enrollment_type = 'MONTHLY'
+           ORDER BY s.user_id""",
+        { rs, _ -> rs.getLong("user_id") },
+    )
+
+    override fun findUpcomingLessons(id: Long, fromDate: LocalDate): List<UpcomingLesson> = jdbc.query(
+        """SELECT b.id, b.lesson_date, b.type, sl.id AS slot_id, sl.day_of_week, sl.start_time, sl.end_time
+           FROM booking b JOIN slot sl ON sl.id = b.slot_id
+           WHERE b.student_id = ? AND b.status = 'SCHEDULED' AND b.lesson_date >= ?
+           ORDER BY b.lesson_date, sl.start_time, b.id""",
+        { rs, _ ->
+            UpcomingLesson(
+                bookingId = rs.getLong("id"),
+                lessonDate = rs.getObject("lesson_date", LocalDate::class.java),
+                slotId = rs.getLong("slot_id"),
+                dayOfWeek = DayOfWeek.of(rs.getInt("day_of_week")),
+                startTime = rs.getObject("start_time", LocalTime::class.java),
+                endTime = rs.getObject("end_time", LocalTime::class.java),
+                type = UpcomingLessonType.valueOf(rs.getString("type")),
+            )
+        },
+        id, fromDate,
+    )
 
     private companion object {
         const val PROFILE_SELECT = """

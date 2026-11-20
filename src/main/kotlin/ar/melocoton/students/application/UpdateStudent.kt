@@ -1,18 +1,21 @@
 package ar.melocoton.students.application
 
 import ar.melocoton.auth.application.port.UserAccountRepository
+import ar.melocoton.shared.domain.WorkshopTime
 import ar.melocoton.students.application.port.StudentRepository
 import ar.melocoton.students.domain.StudentChange
 import ar.melocoton.students.domain.StudentNotFound
 import ar.melocoton.students.domain.StudentProfile
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.Clock
 
 /** CU-02, DI-46: the lead teacher edits a student's name and phone. Email and modality are not editable here. */
 @Service
 class UpdateStudent(
     private val accounts: UserAccountRepository,
     private val students: StudentRepository,
+    private val clock: Clock,
 ) {
     @Transactional
     fun update(id: Long, change: StudentChange): StudentProfile {
@@ -21,6 +24,6 @@ class UpdateStudent(
         val account = accounts.lockById(id) ?: throw StudentNotFound()
         account.changeContact(change.name, change.phone)
         accounts.saveContact(account)
-        return checkNotNull(students.findProfile(id)) { "Student $id disappeared" }
+        return checkNotNull(students.findProfileWithLessons(id, WorkshopTime.now(clock))) { "Student $id disappeared" }
     }
 }

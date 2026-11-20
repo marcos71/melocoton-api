@@ -1013,10 +1013,309 @@
         "summary" : "Edit a student's name and phone (CU-02, DI-46)",
         "tags" : [ "Students" ]
       }
+    },
+    "/api/v1/students/{id}/drop-in-bookings" : {
+      "post" : {
+        "description" : "The date must fall on the slot's weekday, be at most 3 months ahead, and the lesson must not have started. A drop-in booking never exceeds the slot's capacity.",
+        "operationId" : "bookDropInClass",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/BookDropInClassRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BookingResponse"
+                }
+              }
+            },
+            "description" : "The scheduled drop-in booking"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "validation_error: a field is missing or malformed. invalid_lesson_date: the date is not on the slot's weekday or is more than 3 months ahead"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "role_not_allowed: only the lead teacher"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "not_found: the id is not a student, or the slot does not exist"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "enrollment_type_mismatch: the student is not drop-in. student_inactive. slot_inactive. lesson_already_started. already_booked: the student has an active booking in that lesson. capacity_full: no place left"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "too_many_requests: more than 60 requests in a minute from the same user"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "Book a drop-in class for a drop-in student (RF-09, RF-11, DI-44)",
+        "tags" : [ "Bookings" ]
+      }
+    },
+    "/api/v1/students/{id}/drop-in-bookings/{bookingId}/cancel" : {
+      "post" : {
+        "description" : "Only a scheduled drop-in booking of that student, before the lesson starts. It frees the place.",
+        "operationId" : "cancelDropInClass",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }, {
+          "in" : "path",
+          "name" : "bookingId",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BookingResponse"
+                }
+              }
+            },
+            "description" : "The cancelled booking"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "role_not_allowed: only the lead teacher"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "not_found: the id is not a student, or the booking does not exist, is another student's or is not a drop-in"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "status_conflict: the booking is not scheduled. lesson_already_started"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "too_many_requests: more than 60 requests in a minute from the same user"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "Cancel a student's drop-in class (RF-52, DI-44)",
+        "tags" : [ "Bookings" ]
+      }
+    },
+    "/api/v1/students/{id}/fixed-slot" : {
+      "put" : {
+        "description" : "Generates the student's fixed bookings from today to the end of the rolling window, even over the slot's capacity: the response lists the future lessons of the slot that end up over capacity. If the student had another slot, its scheduled fixed bookings of lessons that have not started are cancelled (ENROLLMENT_CHANGE). Assigning the same slot again only fills the missing dates.",
+        "operationId" : "assignFixedSlot",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AssignFixedSlotRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FixedSlotAssignmentResponse"
+                }
+              }
+            },
+            "description" : "The assigned slot and its overbooked future lessons"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "validation_error: slotId is missing or malformed"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "role_not_allowed: only the lead teacher"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "not_found: the id is not a student, or the slot does not exist"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "enrollment_type_mismatch: the student is not monthly. student_inactive. slot_inactive"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "too_many_requests: more than 60 requests in a minute from the same user"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "Assign or replace a monthly student's fixed slot (RF-08, DI-27, DI-42, DI-43)",
+        "tags" : [ "Bookings" ]
+      }
     }
   },
   "components" : {
     "schemas" : {
+      "AssignFixedSlotRequest" : {
+        "type" : "object",
+        "properties" : {
+          "slotId" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        },
+        "required" : [ "slotId" ]
+      },
+      "AssignedSlotResponse" : {
+        "type" : "object",
+        "properties" : {
+          "dayOfWeek" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "ISO day of the week: 1 is Monday, 7 is Sunday"
+          },
+          "endTime" : {
+            "type" : "string",
+            "description" : "HH:mm",
+            "example" : "18:00"
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "startTime" : {
+            "type" : "string",
+            "description" : "HH:mm",
+            "example" : "18:00"
+          }
+        },
+        "required" : [ "dayOfWeek", "endTime", "id", "startTime" ]
+      },
       "AssistantTeacherResponse" : {
         "type" : "object",
         "properties" : {
@@ -1038,6 +1337,48 @@
           }
         },
         "required" : [ "active", "email", "id", "name", "phone" ]
+      },
+      "BookDropInClassRequest" : {
+        "type" : "object",
+        "properties" : {
+          "lessonDate" : {
+            "type" : "string",
+            "format" : "date",
+            "description" : "A date on the slot's weekday",
+            "example" : "2026-12-01"
+          },
+          "slotId" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        },
+        "required" : [ "lessonDate", "slotId" ]
+      },
+      "BookingResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "lessonDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "slotId" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "SCHEDULED", "PRESENT", "ABSENT", "ABSENT_RECOVERABLE", "MADE_UP", "CANCELLED", "NOT_RECOVERABLE", "UNRECORDED" ]
+          },
+          "type" : {
+            "type" : "string",
+            "enum" : [ "FIXED", "DROP_IN", "MAKEUP" ]
+          }
+        },
+        "required" : [ "id", "lessonDate", "slotId", "status", "type" ]
       },
       "CapacityBelowOccupancyDetails" : {
         "properties" : {
@@ -1152,6 +1493,21 @@
         },
         "required" : [ "error" ]
       },
+      "FixedSlotAssignmentResponse" : {
+        "type" : "object",
+        "properties" : {
+          "fixedSlot" : {
+            "$ref" : "#/components/schemas/AssignedSlotResponse"
+          },
+          "overbookedLessons" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/OverbookedLessonResponse"
+            }
+          }
+        },
+        "required" : [ "fixedSlot", "overbookedLessons" ]
+      },
       "FixedSlotResponse" : {
         "type" : "object",
         "properties" : {
@@ -1241,6 +1597,10 @@
       "OverbookedLessonResponse" : {
         "type" : "object",
         "properties" : {
+          "capacity" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
           "lessonDate" : {
             "type" : "string",
             "format" : "date"
@@ -1250,7 +1610,7 @@
             "format" : "int32"
           }
         },
-        "required" : [ "lessonDate", "occupancy" ]
+        "required" : [ "capacity", "lessonDate", "occupancy" ]
       },
       "PasswordResetRequest" : {
         "type" : "object",
@@ -1454,9 +1814,16 @@
           },
           "phone" : {
             "type" : "string"
+          },
+          "upcomingLessons" : {
+            "type" : "array",
+            "description" : "Scheduled classes that have not started, by date and start time",
+            "items" : {
+              "$ref" : "#/components/schemas/UpcomingLessonResponse"
+            }
           }
         },
-        "required" : [ "active", "email", "enrollmentType", "id", "name", "phone" ]
+        "required" : [ "active", "email", "enrollmentType", "id", "name", "phone", "upcomingLessons" ]
       },
       "TokenResponse" : {
         "type" : "object",
@@ -1470,6 +1837,43 @@
           }
         },
         "required" : [ "accessToken", "expiresAt" ]
+      },
+      "UpcomingLessonResponse" : {
+        "type" : "object",
+        "properties" : {
+          "bookingId" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "dayOfWeek" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "ISO day of the week: 1 is Monday, 7 is Sunday"
+          },
+          "endTime" : {
+            "type" : "string",
+            "description" : "HH:mm",
+            "example" : "18:00"
+          },
+          "lessonDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "slotId" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "startTime" : {
+            "type" : "string",
+            "description" : "HH:mm",
+            "example" : "18:00"
+          },
+          "type" : {
+            "type" : "string",
+            "enum" : [ "FIXED", "DROP_IN", "MAKEUP" ]
+          }
+        },
+        "required" : [ "bookingId", "dayOfWeek", "endTime", "lessonDate", "slotId", "startTime", "type" ]
       },
       "UpdateSlotRequest" : {
         "type" : "object",

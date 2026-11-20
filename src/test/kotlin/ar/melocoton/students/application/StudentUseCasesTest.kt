@@ -19,6 +19,8 @@ import ar.melocoton.students.domain.StudentChange
 import ar.melocoton.students.domain.StudentFilter
 import ar.melocoton.students.domain.StudentNotFound
 import ar.melocoton.students.domain.StudentProfile
+import ar.melocoton.students.domain.UpcomingLesson
+import ar.melocoton.students.domain.UpcomingLessonType
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -33,6 +35,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneOffset
 
 class StudentUseCasesTest {
@@ -76,6 +79,7 @@ class StudentUseCasesTest {
         every { afterCommit.run(any()) } answers { pending += firstArg<() -> Unit>() }
         every { sender.send(any(), any(), any()) } just runs
         every { students.findProfile(9) } returns profile()
+        every { students.findUpcomingLessons(9, today) } returns emptyList()
     }
 
     // ---- CreateStudent ----
@@ -168,10 +172,11 @@ class StudentUseCasesTest {
     fun `RF04_editingChangesTheNameAndPhoneThroughTheAccountPort`() {
         val saved = slot<UserAccount>()
         every { students.findProfile(9) } returns profile()
+        every { students.findUpcomingLessons(9, today) } returns emptyList()
         every { accounts.lockById(9) } returns account()
         every { accounts.saveContact(capture(saved)) } just runs
 
-        UpdateStudent(accounts, students).update(9, StudentChange(" Lucía G. ", null))
+        UpdateStudent(accounts, students, clock).update(9, StudentChange(" Lucía G. ", null))
 
         assertThat(saved.captured.name).isEqualTo("Lucía G.")
         assertThat(saved.captured.phone).isEqualTo("1155550000")
@@ -182,7 +187,7 @@ class StudentUseCasesTest {
     fun `RF04_editingAnIdThatIsNotAStudentIsNotFoundAndChangesNothing`() {
         every { students.findProfile(9) } returns null
 
-        assertThatThrownBy { UpdateStudent(accounts, students).update(9, StudentChange("Lucía G.", null)) }
+        assertThatThrownBy { UpdateStudent(accounts, students, clock).update(9, StudentChange("Lucía G.", null)) }
             .isInstanceOf(StudentNotFound::class.java)
 
         verify(exactly = 0) { accounts.lockById(any()) }
@@ -192,10 +197,28 @@ class StudentUseCasesTest {
     // ---- GetStudent, ListStudents ----
 
     @Test
+    fun `DI46_theProfileListsOnlyTheClassesThatHaveNotStartedInOrder`() {
+        // The clock is 2026-11-19 22:00 in Buenos Aires.
+        fun lesson(id: Long, date: LocalDate, start: String) = UpcomingLesson(
+            id, date, 1, date.dayOfWeek, LocalTime.parse(start), LocalTime.parse(start).plusHours(2), UpcomingLessonType.FIXED,
+        )
+        every { students.findProfile(9) } returns profile()
+        every { students.findUpcomingLessons(9, today) } returns listOf(
+            lesson(3, today.plusDays(7), "18:00"),
+            lesson(1, today, "18:00"),
+            lesson(2, today, "23:00"),
+        )
+
+        val result = GetStudent(students, clock).get(9)
+
+        assertThat(result.upcomingLessons.map { it.bookingId }).containsExactly(2, 3)
+    }
+
+    @Test
     fun `RF05_aMissingStudentIsNotFound`() {
         every { students.findProfile(5) } returns null
 
-        assertThatThrownBy { GetStudent(students).get(5) }.isInstanceOf(StudentNotFound::class.java)
+        assertThatThrownBy { GetStudent(students, clock).get(5) }.isInstanceOf(StudentNotFound::class.java)
     }
 
     @Test

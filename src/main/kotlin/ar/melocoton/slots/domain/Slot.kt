@@ -85,6 +85,11 @@ class Slot(
     fun overlaps(dayOfWeek: DayOfWeek, startTime: LocalTime, endTime: LocalTime): Boolean =
         this.dayOfWeek == dayOfWeek && this.startTime < endTime && startTime < this.endTime
 
+    /** @throws SlotNotAcceptingBookings the slot is deactivated */
+    fun requireAcceptsBookings() {
+        if (!active) throw SlotNotAcceptingBookings()
+    }
+
     /** Future lessons whose occupancy is above the capacity, by date (DI-43). Past lessons are never considered. */
     fun overbookedLessons(occupancyByDate: Map<LocalDate, Int>, now: LocalDateTime): List<LessonOccupancy> =
         futureLessons(occupancyByDate, now).filter { it.occupancy > capacity }
