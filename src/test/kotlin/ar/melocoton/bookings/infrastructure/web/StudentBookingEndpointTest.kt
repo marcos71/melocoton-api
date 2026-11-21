@@ -6,6 +6,7 @@ import ar.melocoton.bookings.application.port.BookingRepository
 import ar.melocoton.bookings.domain.AlreadyBooked
 import ar.melocoton.schema.SchemaFixtures
 import ar.melocoton.shared.domain.Role
+import ar.melocoton.slots.domain.Slot
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
@@ -62,10 +63,10 @@ class StudentBookingEndpointTest(
 
     private val lead get() = tokenFor(Role.LEAD_TEACHER)
 
-    private fun slot(day: Int = 2, start: String = "18:00", end: String = "20:00", capacity: Int = 8, active: Boolean = true): Long =
+    private fun slot(day: Int = 2, start: String = "18:00", end: String = "20:00", active: Boolean = true): Long =
         jdbc.queryForObject(
-            "INSERT INTO slot (day_of_week, start_time, end_time, capacity, active) VALUES (?, ?::time, ?::time, ?, ?) RETURNING id",
-            Long::class.java, day, start, end, capacity, active,
+            "INSERT INTO slot (day_of_week, start_time, end_time, active) VALUES (?, ?::time, ?::time, ?) RETURNING id",
+            Long::class.java, day, start, end, active,
         )!!
 
     private fun student(
@@ -244,21 +245,69 @@ class StudentBookingEndpointTest(
     }
 
     @Test
-    fun `DI43_fixedBookingsMayExceedCapacity`() {
-        val slotId = slot(capacity = 2)
-        fill(slotId, "2026-12-01", 2)
-        fill(slotId, "2026-12-08", 1)
+    fun `DI43_aFixedAssignmentMayOverbookADateFilledByEarlierBookings`() {
+        val slotId = slot()
+        fill(slotId, "2026-12-01", Slot.CAPACITY)
+        fill(slotId, "2026-12-08", Slot.CAPACITY - 1)
         val studentId = student()
 
         assign(studentId, slotId).andExpect {
             status { isOk() }
             jsonPath("$.overbookedLessons.length()") { value(1) }
             jsonPath("$.overbookedLessons[0].lessonDate") { value("2026-12-01") }
-            jsonPath("$.overbookedLessons[0].occupancy") { value(3) }
-            jsonPath("$.overbookedLessons[0].capacity") { value(2) }
+            jsonPath("$.overbookedLessons[0].occupancy") { value(13) }
+            jsonPath("$.overbookedLessons[0].capacity") { value(12) }
         }
 
         assertThat(bookingDates(studentId, slotId)).containsExactlyElementsOf(tuesdays)
+    }
+
+    @Test
+    fun `DI66_aSlotWithTwelveFixedStudentsRejectsAnotherOne`() {
+        val slotId = slot()
+        repeat(Slot.CAPACITY) { student(slotId = slotId) }
+        val newcomer = student()
+
+        assign(newcomer, slotId).andExpect {
+            status { isConflict() }
+            jsonPath("$.error.code") { value("fixed_students_full") }
+            jsonPath("$.error.message") { value("El turno ya tiene 12 alumnos fijos, que es su cupo.") }
+            jsonPath("$.error.details.fixedStudents") { value(12) }
+            jsonPath("$.error.details.capacity") { value(12) }
+        }
+
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM booking WHERE student_id = ?", Int::class.java, newcomer)).isZero()
+        assertThat(jdbc.queryForObject("SELECT fixed_slot_id FROM student WHERE user_id = ?", Long::class.javaObjectType, newcomer)).isNull()
+    }
+
+    @Test
+    fun `DI66_aStudentAlreadyInAFullSlotCanBeAssignedItAgain`() {
+        val slotId = slot()
+        repeat(Slot.CAPACITY - 1) { student(slotId = slotId) }
+        val member = student(slotId = slotId)
+
+        assign(member, slotId).andExpect { status { isOk() } }
+    }
+
+    @Test
+    fun `DI66_inactiveStudentsDoNotTakeAFixedPlace`() {
+        val slotId = slot()
+        repeat(Slot.CAPACITY) { student(slotId = slotId, active = false) }
+
+        assign(student(), slotId).andExpect { status { isOk() } }
+    }
+
+    @Test
+    fun `DI66_withOnePlaceLeftTheAssignmentSucceedsEvenIfADropInFilledADate`() {
+        val slotId = slot()
+        repeat(Slot.CAPACITY - 1) { student(slotId = slotId) }
+        fill(slotId, "2026-12-01", Slot.CAPACITY)
+
+        assign(student(), slotId).andExpect {
+            status { isOk() }
+            jsonPath("$.overbookedLessons.length()") { value(1) }
+            jsonPath("$.overbookedLessons[0].occupancy") { value(13) }
+        }
     }
 
     @Test
@@ -398,8 +447,8 @@ class StudentBookingEndpointTest(
 
     @Test
     fun `RF11_aDropInCannotExceedTheCapacityAndNothingIsSaved`() {
-        val slotId = slot(capacity = 3)
-        fill(slotId, "2026-11-24", 3)
+        val slotId = slot()
+        fill(slotId, "2026-11-24", Slot.CAPACITY)
         val studentId = student(monthly = false)
 
         book(studentId, slotId, "2026-11-24").isError(409, "capacity_full", "No queda lugar en esa clase.")
@@ -409,8 +458,8 @@ class StudentBookingEndpointTest(
 
     @Test
     fun `RN02_onlyBookingsThatOccupyAPlaceCountForTheCapacity`() {
-        val slotId = slot(capacity = 3)
-        fill(slotId, "2026-11-24", 2)
+        val slotId = slot()
+        fill(slotId, "2026-11-24", Slot.CAPACITY - 1)
         fill(slotId, "2026-11-24", 1, status = "CANCELLED")
         fill(slotId, "2026-11-24", 2, status = "ABSENT")
 
@@ -420,8 +469,8 @@ class StudentBookingEndpointTest(
 
     @Test
     fun `DI43_anOverbookedLessonTakesNoDropIn`() {
-        val slotId = slot(capacity = 1)
-        fill(slotId, "2026-11-24", 3)
+        val slotId = slot()
+        fill(slotId, "2026-11-24", Slot.CAPACITY + 1)
 
         book(student(monthly = false), slotId, "2026-11-24").isError(409, "capacity_full")
     }
@@ -440,7 +489,8 @@ class StudentBookingEndpointTest(
 
     @Test
     fun `RF52_theTeacherCancelsADropInAndTheirPlaceIsFree`() {
-        val slotId = slot(capacity = 1)
+        val slotId = slot()
+        fill(slotId, "2026-11-24", Slot.CAPACITY - 1)
         val studentId = student(monthly = false)
         val bookingId = idOf(book(studentId, slotId, "2026-11-24"))
         book(student(monthly = false), slotId, "2026-11-24").isError(409, "capacity_full")

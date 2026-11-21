@@ -29,8 +29,6 @@ class SlotEntity(
     @Column(name = "end_time")
     var endTime: LocalTime,
 
-    var capacity: Int,
-
     var active: Boolean,
 )
 
@@ -39,7 +37,6 @@ fun SlotEntity.toDomain() = Slot(
     dayOfWeek = DayOfWeek.of(dayOfWeek.toInt()),
     startTime = startTime,
     endTime = endTime,
-    capacity = capacity,
     active = active,
 )
 
@@ -47,6 +44,5 @@ fun NewSlot.toEntity() = SlotEntity(
     dayOfWeek = dayOfWeek.value.toShort(),
     startTime = startTime,
     endTime = endTime,
-    capacity = capacity,
     active = true,
 )

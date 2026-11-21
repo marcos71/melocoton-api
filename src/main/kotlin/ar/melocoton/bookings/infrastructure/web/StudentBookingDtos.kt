@@ -5,6 +5,7 @@ import ar.melocoton.bookings.domain.Booking
 import ar.melocoton.bookings.domain.BookingStatus
 import ar.melocoton.bookings.domain.BookingType
 import ar.melocoton.slots.domain.LessonOccupancy
+import ar.melocoton.slots.domain.Slot
 import io.swagger.v3.oas.annotations.media.Schema
 import java.time.LocalDate
 import java.time.LocalTime
@@ -63,7 +64,7 @@ fun FixedSlotAssignment.toResponse() = FixedSlotAssignmentResponse(
         startTime = slot.startTime,
         endTime = slot.endTime,
     ),
-    overbookedLessons = overbookedLessons.map { it.toResponse(slot.capacity) },
+    overbookedLessons = overbookedLessons.map { it.toResponse(Slot.CAPACITY) },
 )
 
 private fun LessonOccupancy.toResponse(capacity: Int) =

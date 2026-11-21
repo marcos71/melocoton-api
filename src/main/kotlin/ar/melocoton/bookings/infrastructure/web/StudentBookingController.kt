@@ -38,8 +38,8 @@ class StudentBookingController(
     @Operation(
         operationId = "assignFixedSlot",
         summary = "Assign or replace a monthly student's fixed slot (RF-08, DI-27, DI-42, DI-43)",
-        description = "Generates the student's fixed bookings from today to the end of the rolling window, " +
-            "even over the slot's capacity: the response lists the future lessons of the slot that end up " +
+        description = "The slot takes at most as many fixed students as its capacity (DI-66). Generates the student's " +
+            "fixed bookings from today to the end of the rolling window, even on dates that drop-ins filled: the response lists the future lessons of the slot that end up " +
             "over capacity. If the student had another slot, its scheduled fixed bookings of lessons that " +
             "have not started are cancelled (ENROLLMENT_CHANGE). Assigning the same slot again only fills the missing dates.",
     )
@@ -62,7 +62,9 @@ class StudentBookingController(
         ),
         ApiResponse(
             responseCode = "409",
-            description = "enrollment_type_mismatch: the student is not monthly. student_inactive. slot_inactive",
+            description = "enrollment_type_mismatch: the student is not monthly. student_inactive. slot_inactive. " +
+                "fixed_students_full: the slot already has as many fixed students as its capacity; " +
+                "details is FixedStudentsFullDetails (DI-66)",
             content = [Content(schema = Schema(implementation = ErrorResponse::class))],
         ),
     )

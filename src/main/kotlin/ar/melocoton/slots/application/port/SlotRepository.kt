@@ -30,6 +30,6 @@ interface SlotRepository {
     /** All active slots, ordered by id. Plain read: take [lockSchedule] first when the result guards a write. */
     fun findActive(): List<Slot>
 
-    /** Writes the editable fields (day, time, capacity) of a slot already loaded in this transaction. */
+    /** Writes the editable fields (day, time) of a slot already loaded in this transaction. */
     fun save(slot: Slot)
 }

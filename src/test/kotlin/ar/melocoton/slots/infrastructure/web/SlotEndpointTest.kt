@@ -53,8 +53,8 @@ class SlotEndpointTest(
 
     private val lead get() = tokenFor(Role.LEAD_TEACHER)
 
-    private fun body(day: Int = 2, start: String = "18:00", end: String = "20:00", capacity: Int = 8) =
-        mapOf("dayOfWeek" to day, "startTime" to start, "endTime" to end, "capacity" to capacity)
+    private fun body(day: Int = 2, start: String = "18:00", end: String = "20:00") =
+        mapOf("dayOfWeek" to day, "startTime" to start, "endTime" to end)
 
     private fun create(token: String?, body: Map<String, Any?>) = mvc.post("/api/v1/slots") {
         token?.let { header(HttpHeaders.AUTHORIZATION, "Bearer $it") }
@@ -112,13 +112,13 @@ class SlotEndpointTest(
 
     @Test
     fun `RF06_theLeadTeacherCreatesASlot`() {
-        create(lead, body(day = 2, start = "18:00", end = "20:00", capacity = 8)).andExpect {
+        create(lead, body(day = 2, start = "18:00", end = "20:00")).andExpect {
             status { isCreated() }
             jsonPath("$.id") { isNumber() }
             jsonPath("$.dayOfWeek") { value(2) }
             jsonPath("$.startTime") { value("18:00") }
             jsonPath("$.endTime") { value("20:00") }
-            jsonPath("$.capacity") { value(8) }
+            jsonPath("$.capacity") { value(12) }
             jsonPath("$.active") { value(true) }
         }
     }
@@ -131,10 +131,6 @@ class SlotEndpointTest(
         create(lead, body(day = 8)).isValidationError()
         create(lead, body(start = "20:00", end = "18:00")).isValidationError()
         create(lead, body(start = "18:00", end = "18:00")).isValidationError()
-        create(lead, body(capacity = 0)).isValidationError()
-        create(lead, body(capacity = -3)).isValidationError()
-        create(lead, body(capacity = 13)).isValidationError()
-        create(lead, body() - "capacity").isValidationError()
         create(lead, body() - "dayOfWeek").isValidationError()
         create(lead, body(start = "25:00")).isValidationError()
         create(lead, body(start = "tarde")).isValidationError()
@@ -176,7 +172,7 @@ class SlotEndpointTest(
 
     @Test
     fun `DI34_errorsWithoutDetailsDoNotCarryTheField`() {
-        val response = create(lead, body(capacity = 0)).andReturn().response.contentAsString
+        val response = create(lead, body(day = 0)).andReturn().response.contentAsString
 
         assertThat(json.readTree(response)["error"].has("details")).isFalse()
     }
@@ -189,7 +185,7 @@ class SlotEndpointTest(
         val id = createdId(lead, body())
         for (role in listOf(Role.ASSISTANT_TEACHER, Role.STUDENT)) {
             val token = tokenFor(role)
-            for (result in listOf(create(token, body()), list(token), get(token, id), patch(token, id, mapOf("capacity" to 5)))) {
+            for (result in listOf(create(token, body()), list(token), get(token, id), patch(token, id, mapOf("startTime" to "17:00")))) {
                 result.andExpect {
                     status { isForbidden() }
                     jsonPath("$.error.code") { value("role_not_allowed") }
@@ -203,7 +199,7 @@ class SlotEndpointTest(
         create(null, body()).andExpect { status { isUnauthorized() } }
         list(null).andExpect { status { isUnauthorized() } }
         get(null, 1).andExpect { status { isUnauthorized() } }
-        patch(null, 1, mapOf("capacity" to 5)).andExpect { status { isUnauthorized() } }
+        patch(null, 1, mapOf("startTime" to "17:00")).andExpect { status { isUnauthorized() } }
     }
 
     // ---- list and get ----
@@ -229,12 +225,12 @@ class SlotEndpointTest(
     @Test
     fun `RF07_getReturnsTheSlotOrNotFound`() {
         val lead = lead
-        val id = createdId(lead, body(capacity = 6))
+        val id = createdId(lead, body())
 
         get(lead, id).andExpect {
             status { isOk() }
             jsonPath("$.id") { value(id) }
-            jsonPath("$.capacity") { value(6) }
+            jsonPath("$.capacity") { value(12) }
             jsonPath("$.upcomingOverbookedLessons") { isEmpty() }
         }
         get(lead, Long.MAX_VALUE).andExpect {
@@ -244,17 +240,21 @@ class SlotEndpointTest(
     }
 
     @Test
-    fun `DI64_capacityAboveTwelveIsAValidationErrorOnCreateAndPatch`() {
+    fun `DI64_everySlotReportsACapacityOfTwelveAndACapacityInTheBodyIsIgnored`() {
         val lead = lead
-        create(lead, body(capacity = 13)).andExpect {
-            status { isBadRequest() }
-            jsonPath("$.error.code") { value("validation_error") }
-            jsonPath("$.error.message") { value("El cupo tiene que ser un número de 1 a 12.") }
-        }
-        val id = createdId(lead, body(capacity = 12))
 
-        patch(lead, id, mapOf("capacity" to 13)).isValidationError()
-        patch(lead, id, mapOf("capacity" to 0)).isValidationError()
+        // The request has no capacity field: an unknown one is ignored, as for any other unknown field.
+        create(lead, body() + ("capacity" to 3)).andExpect {
+            status { isCreated() }
+            jsonPath("$.capacity") { value(12) }
+        }
+        val id = createdId(lead, body(day = 5))
+        patch(lead, id, mapOf("startTime" to "19:00", "capacity" to 3)).andExpect {
+            status { isOk() }
+            jsonPath("$.capacity") { value(12) }
+        }
+        // A PATCH with only a capacity has nothing to change.
+        patch(lead, id, mapOf("capacity" to 3)).isValidationError()
     }
 
     @Test
@@ -303,6 +303,25 @@ class SlotEndpointTest(
         assertThat(items[inactive]).isFalse()
     }
 
+    @Test
+    fun `DI66_getAndListReportTheFixedStudentsOfEachSlot`() {
+        val lead = lead
+        val withFixed = createdId(lead, body(day = 1))
+        val withoutFixed = createdId(lead, body(day = 2))
+        sync()
+        fixtures.monthlyStudent(withFixed)
+        fixtures.monthlyStudent(withFixed)
+        val inactive = fixtures.monthlyStudent(withFixed)
+        jdbc.update("UPDATE app_user SET active = false WHERE id = ?", inactive)
+
+        get(lead, withFixed).andExpect { jsonPath("$.fixedStudents") { value(2) } }
+        get(lead, withoutFixed).andExpect { jsonPath("$.fixedStudents") { value(0) } }
+        val counts = json.readTree(list(lead).andReturn().response.contentAsString)
+            .associate { it["id"].asLong() to it["fixedStudents"].asInt() }
+        assertThat(counts[withFixed]).isEqualTo(2)
+        assertThat(counts[withoutFixed]).isEqualTo(0)
+    }
+
     private fun scheduleEditableInList(token: String, id: Long): Boolean =
         json.readTree(list(token).andReturn().response.contentAsString)
             .first { it["id"].asLong() == id }["scheduleEditable"].asBoolean()
@@ -329,10 +348,10 @@ class SlotEndpointTest(
     @Test
     fun `DI43_aFutureLessonAboveTheCapacityShowsAsOverbooked`() {
         val lead = lead
-        val id = createdId(lead, body(capacity = 2))
+        val id = createdId(lead, body())
         val date = today.plusDays(10)
         // Fixed bookings may exceed the capacity (DI-43); a cancelled one does not count.
-        bookings(id, date, "SCHEDULED", 3)
+        bookings(id, date, "SCHEDULED", 13)
         bookings(id, date, "CANCELLED", 2)
         // A lesson in the past is never listed.
         bookings(id, today.minusDays(10), "PRESENT", 4)
@@ -340,27 +359,13 @@ class SlotEndpointTest(
         get(lead, id).andExpect {
             jsonPath("$.upcomingOverbookedLessons.length()") { value(1) }
             jsonPath("$.upcomingOverbookedLessons[0].lessonDate") { value(date.toString()) }
-            jsonPath("$.upcomingOverbookedLessons[0].occupancy") { value(3) }
+            jsonPath("$.upcomingOverbookedLessons[0].occupancy") { value(13) }
         }
         val item = json.readTree(list(lead).andReturn().response.contentAsString).first { it["id"].asLong() == id }
         assertThat(item["upcomingOverbookedLessons"].size()).isEqualTo(1)
     }
 
     // ---- patch ----
-
-    @Test
-    fun `CU03_theCapacityIsEdited`() {
-        val lead = lead
-        val id = createdId(lead, body(capacity = 8))
-
-        patch(lead, id, mapOf("capacity" to 10)).andExpect {
-            status { isOk() }
-            jsonPath("$.capacity") { value(10) }
-            jsonPath("$.upcomingOverbookedLessons") { isEmpty() }
-        }
-        sync()
-        assertThat(jdbc.queryForObject("SELECT capacity FROM slot WHERE id = ?", Int::class.java, id)).isEqualTo(10)
-    }
 
     @Test
     fun `RF06_theTimesAreStoredAsEnteredWithTheJvmInBuenosAires`() {
@@ -397,74 +402,14 @@ class SlotEndpointTest(
     }
 
     @Test
-    fun `CU03_E1_theCapacityCannotGoBelowTheOccupancyOfFutureLessons`() {
-        val lead = lead
-        val id = createdId(lead, body(capacity = 10))
-        val first = today.plusDays(7)
-        val second = today.plusDays(14)
-        val fine = today.plusDays(21)
-        bookings(id, first, "SCHEDULED", 6)
-        bookings(id, first, "PRESENT", 1)
-        bookings(id, second, "SCHEDULED", 5)
-        bookings(id, fine, "SCHEDULED", 3)
-        bookings(id, fine, "ABSENT", 4)
-
-        patch(lead, id, mapOf("capacity" to 4)).andExpect {
-            status { isConflict() }
-            jsonPath("$.error.code") { value("capacity_below_occupancy") }
-            jsonPath("$.error.details.lessons.length()") { value(2) }
-            jsonPath("$.error.details.lessons[0].lessonDate") { value(first.toString()) }
-            jsonPath("$.error.details.lessons[0].occupancy") { value(7) }
-            jsonPath("$.error.details.lessons[0].spotsToFree") { value(3) }
-            jsonPath("$.error.details.lessons[1].lessonDate") { value(second.toString()) }
-            jsonPath("$.error.details.lessons[1].spotsToFree") { value(1) }
-        }
-        sync()
-        assertThat(jdbc.queryForObject("SELECT capacity FROM slot WHERE id = ?", Int::class.java, id)).isEqualTo(10)
-        // Exactly the highest occupancy fits.
-        patch(lead, id, mapOf("capacity" to 7)).andExpect { status { isOk() } }
-    }
-
-    @Test
-    fun `DI64_raisingTheCapacityOfASlotOverbookedAboveTwelveIsAllowed`() {
-        val lead = lead
-        val id = createdId(lead, body(capacity = 8))
-        bookings(id, today.plusDays(7), "SCHEDULED", 13)
-
-        patch(lead, id, mapOf("capacity" to 12)).andExpect {
-            status { isOk() }
-            jsonPath("$.capacity") { value(12) }
-            jsonPath("$.upcomingOverbookedLessons.length()") { value(1) }
-            jsonPath("$.upcomingOverbookedLessons[0].occupancy") { value(13) }
-        }
-        // Lowering is still checked.
-        patch(lead, id, mapOf("capacity" to 11)).andExpect {
-            status { isConflict() }
-            jsonPath("$.error.code") { value("capacity_below_occupancy") }
-        }
-    }
-
-    @Test
     fun `DI63_thePatchResponseCarriesScheduleEditable`() {
         val lead = lead
         val free = createdId(lead, body(day = 1))
         val used = createdId(lead, body(day = 2))
         bookings(used, today.plusDays(7), "SCHEDULED", 1)
 
-        patch(lead, free, mapOf("capacity" to 5)).andExpect { jsonPath("$.scheduleEditable") { value(true) } }
-        patch(lead, used, mapOf("capacity" to 5)).andExpect { jsonPath("$.scheduleEditable") { value(false) } }
-    }
-
-    @Test
-    fun `CU03_E3_pastLessonsDoNotBlockALowerCapacity`() {
-        val lead = lead
-        val id = createdId(lead, body(capacity = 10))
-        bookings(id, today.minusDays(7), "PRESENT", 9)
-
-        patch(lead, id, mapOf("capacity" to 2)).andExpect {
-            status { isOk() }
-            jsonPath("$.capacity") { value(2) }
-        }
+        patch(lead, free, mapOf("startTime" to "18:00")).andExpect { jsonPath("$.scheduleEditable") { value(true) } }
+        patch(lead, used, mapOf("startTime" to "18:00")).andExpect { jsonPath("$.scheduleEditable") { value(false) } }
     }
 
     @Test
@@ -481,8 +426,6 @@ class SlotEndpointTest(
             status { isConflict() }
             jsonPath("$.error.code") { value("slot_has_bookings") }
         }
-        // The capacity is still editable.
-        patch(lead, id, mapOf("capacity" to 12)).andExpect { status { isOk() } }
     }
 
     @Test
@@ -505,7 +448,7 @@ class SlotEndpointTest(
         val id = createdId(lead, body())
         deactivate(id)
 
-        patch(lead, id, mapOf("capacity" to 3)).andExpect {
+        patch(lead, id, mapOf("startTime" to "17:00")).andExpect {
             status { isConflict() }
             jsonPath("$.error.code") { value("status_conflict") }
         }
@@ -517,10 +460,9 @@ class SlotEndpointTest(
         val id = createdId(lead, body(start = "18:00", end = "20:00"))
 
         patch(lead, id, emptyMap()).isValidationError()
-        patch(lead, id, mapOf("capacity" to 0)).isValidationError()
         patch(lead, id, mapOf("dayOfWeek" to 9)).isValidationError()
         patch(lead, id, mapOf("startTime" to "21:00")).isValidationError()
-        patch(lead, Long.MAX_VALUE, mapOf("capacity" to 5)).andExpect {
+        patch(lead, Long.MAX_VALUE, mapOf("startTime" to "17:00")).andExpect {
             status { isNotFound() }
             jsonPath("$.error.code") { value("not_found") }
         }

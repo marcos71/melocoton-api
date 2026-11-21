@@ -7,6 +7,7 @@ import ar.melocoton.bookings.domain.requireNotAlreadyBooked
 import ar.melocoton.bookings.domain.requireValidDropInDate
 import ar.melocoton.shared.domain.WorkshopTime
 import ar.melocoton.slots.application.port.SlotRepository
+import ar.melocoton.slots.domain.Slot
 import ar.melocoton.slots.domain.SlotNotFound
 import ar.melocoton.students.application.port.StudentRepository
 import ar.melocoton.students.domain.StudentNotFound
@@ -39,7 +40,7 @@ class BookDropInClass(
         slot.requireAcceptsBookings()
         requireValidDropInDate(slot.dayOfWeek, slot.startTime, lessonDate, now)
         requireNotAlreadyBooked(bookings.existingStudentBookings(studentId, slotId, lessonDate, lessonDate))
-        requireFreePlace(slot.capacity, bookings.occupancyOn(slotId, lessonDate))
+        requireFreePlace(Slot.CAPACITY, bookings.occupancyOn(slotId, lessonDate))
 
         return bookings.createDropIn(studentId, slotId, lessonDate)
     }

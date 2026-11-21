@@ -1,6 +1,6 @@
 package ar.melocoton.slots.infrastructure.web
 
-import ar.melocoton.slots.domain.CapacityBelowOccupancyDetails
+import ar.melocoton.slots.domain.FixedStudentsFullDetails
 import ar.melocoton.slots.domain.SlotOverlapDetails
 import io.swagger.v3.core.converter.ModelConverters
 import io.swagger.v3.oas.models.Components
@@ -19,7 +19,10 @@ class SlotOpenApiConfig {
     @Bean
     fun slotErrorDetailsCustomizer() = OpenApiCustomizer { openApi ->
         val components = openApi.components ?: Components().also { openApi.components = it }
-        listOf(SlotOverlapDetails::class.java, CapacityBelowOccupancyDetails::class.java)
+        listOf(
+            SlotOverlapDetails::class.java,
+            FixedStudentsFullDetails::class.java,
+        )
             .flatMap { ModelConverters.getInstance().readAll(it).entries }
             .forEach { (name, schema) ->
                 schema.required = schema.properties?.keys?.toList()

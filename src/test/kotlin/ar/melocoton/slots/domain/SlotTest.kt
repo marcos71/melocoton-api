@@ -21,34 +21,31 @@ class SlotTest {
         day: DayOfWeek = DayOfWeek.TUESDAY,
         start: String = "18:00",
         end: String = "20:00",
-        capacity: Int = 8,
         active: Boolean = true,
-    ) = Slot(id, day, time(start), time(end), capacity, active)
+    ) = Slot(id, day, time(start), time(end), active)
 
-    private fun create(day: Int, start: String, end: String, capacity: Int = 8, active: List<Slot> = emptyList()) =
-        NewSlot.create(day, time(start), time(end), capacity, active)
+    private fun create(day: Int, start: String, end: String, active: List<Slot> = emptyList()) =
+        NewSlot.create(day, time(start), time(end), active)
 
     private fun update(
         slot: Slot,
         change: SlotChange,
         active: List<Slot> = listOf(slot),
         hasBookings: Boolean = false,
-        occupancy: Map<LocalDate, Int> = emptyMap(),
-    ) = slot.update(change, active, { hasBookings }, occupancy, now)
+    ) = slot.update(change, active) { hasBookings }
 
-    private fun change(day: Int? = null, start: String? = null, end: String? = null, capacity: Int? = null) =
-        SlotChange(day, start?.let(::time), end?.let(::time), capacity)
+    private fun change(day: Int? = null, start: String? = null, end: String? = null) =
+        SlotChange(day, start?.let(::time), end?.let(::time))
 
     // ---- RF-06: creating ----
 
     @Test
     fun `RF06_aValidSlotIsCreated`() {
-        val new = create(2, "18:00", "20:00", 8)
+        val new = create(2, "18:00", "20:00")
 
         assertThat(new.dayOfWeek).isEqualTo(DayOfWeek.TUESDAY)
         assertThat(new.startTime).isEqualTo(time("18:00"))
         assertThat(new.endTime).isEqualTo(time("20:00"))
-        assertThat(new.capacity).isEqualTo(8)
     }
 
     @Test
@@ -63,73 +60,49 @@ class SlotTest {
         assertThatThrownBy { create(2, "21:00", "20:00") }.isInstanceOf(InvalidSlot::class.java)
     }
 
-    @Test
-    fun `RF06_aCapacityOfZeroOrLessIsInvalid`() {
-        assertThatThrownBy { create(2, "18:00", "20:00", 0) }.isInstanceOf(InvalidSlot::class.java)
-        assertThatThrownBy { create(2, "18:00", "20:00", -1) }.isInstanceOf(InvalidSlot::class.java)
-    }
-
-    // ---- DI-64: capacity from 1 to 12 ----
+    // ---- DI-64: every slot holds 12 ----
 
     @Test
-    fun `DI64_capacityAboveTwelveIsRejectedOnCreate`() {
-        val error = catchBusinessError { create(2, "18:00", "20:00", 13) }
-
-        assertThat(error).isInstanceOf(InvalidSlot::class.java)
-        assertThat(error.message).isEqualTo("El cupo tiene que ser un número de 1 a 12.")
+    fun `DI64_everySlotHoldsTwelveStudents`() {
+        assertThat(Slot.CAPACITY).isEqualTo(12)
     }
 
     @Test
-    fun `DI64_capacityOfOneAndTwelveAreAcceptedOnCreate`() {
-        assertThat(create(2, "18:00", "20:00", 1).capacity).isEqualTo(1)
-        assertThat(create(2, "18:00", "20:00", 12).capacity).isEqualTo(12)
-    }
+    fun `DI64_overbookedLessonsAreTheFutureOnesAboveTwelveByDate`() {
+        val occupancy = mapOf(
+            today.plusDays(15) to 14,
+            today.plusDays(8) to 12,
+            today.plusDays(1) to 13,
+            today.minusDays(7) to 20,
+        )
 
-    @Test
-    fun `DI64_capacityOutOfRangeIsRejectedOnChange`() {
-        assertThatThrownBy { change(capacity = 0) }.isInstanceOf(InvalidSlot::class.java)
-        assertThatThrownBy { change(capacity = 13) }.isInstanceOf(InvalidSlot::class.java)
-        assertThat(change(capacity = 1).capacity).isEqualTo(1)
-        assertThat(change(capacity = 12).capacity).isEqualTo(12)
-    }
-
-    @Test
-    fun `DI64_raisingTheCapacityIsAllowedEvenIfALessonStaysOverbooked`() {
-        val slot = slot(capacity = 8)
-
-        update(slot, change(capacity = 12), occupancy = mapOf(today.plusDays(1) to 13))
-
-        assertThat(slot.capacity).isEqualTo(12)
-    }
-
-    @Test
-    fun `DI64_keepingTheCapacityIsAllowedEvenIfALessonIsOverbooked`() {
-        val slot = slot(capacity = 8)
-
-        update(slot, change(capacity = 8), occupancy = mapOf(today.plusDays(1) to 13))
-
-        assertThat(slot.capacity).isEqualTo(8)
-    }
-
-    @Test
-    fun `DI64_loweringTheCapacityStillCannotGoBelowAFutureOccupancy`() {
-        val slot = slot(capacity = 12)
-
-        val error = catchBusinessError { update(slot, change(capacity = 5), occupancy = mapOf(today.plusDays(1) to 9)) }
-
-        assertThat(error).isInstanceOf(CapacityBelowOccupancy::class.java)
-        assertThat(error.details).isEqualTo(
-            CapacityBelowOccupancyDetails(listOf(LessonOverCapacity(today.plusDays(1), occupancy = 9, spotsToFree = 4))),
+        assertThat(slot().overbookedLessons(occupancy, now)).containsExactly(
+            LessonOccupancy(today.plusDays(1), 13),
+            LessonOccupancy(today.plusDays(15), 14),
         )
     }
 
+    // ---- DI-66: fixed students ----
+
     @Test
-    fun `DI64_loweringTheCapacityToExactlyTheOccupancyIsAllowed`() {
-        val slot = slot(capacity = 12)
+    fun `DI66_aSlotWithTwelveFixedStudentsRejectsAnotherOne`() {
+        val error = catchBusinessError { slot().requireRoomForFixedStudent(otherFixedStudents = 12) }
 
-        update(slot, change(capacity = 9), occupancy = mapOf(today.plusDays(1) to 9))
+        assertThat(error).isInstanceOf(FixedStudentsFull::class.java)
+        assertThat(error.code).isEqualTo("fixed_students_full")
+        assertThat(error.message).isEqualTo("El turno ya tiene 12 alumnos fijos, que es su cupo.")
+        assertThat(error.details).isEqualTo(FixedStudentsFullDetails(fixedStudents = 12, capacity = 12))
+    }
 
-        assertThat(slot.capacity).isEqualTo(9)
+    @Test
+    fun `DI66_aSlotWithOnePlaceLeftAcceptsAFixedStudent`() {
+        slot().requireRoomForFixedStudent(otherFixedStudents = 11)
+    }
+
+    @Test
+    fun `DI66_aStudentAlreadyInAFullSlotIsNotCountedAgainstIt`() {
+        // The use case counts the OTHER fixed students: 11 when the 12 of a full slot include the student.
+        slot().requireRoomForFixedStudent(otherFixedStudents = 11)
     }
 
     // ---- DI-63: scheduleEditable ----
@@ -219,7 +192,7 @@ class SlotTest {
     fun `DI45_anInactiveSlotCannotBeEdited`() {
         val slot = slot(active = false)
 
-        val error = catchBusinessError { update(slot, change(capacity = 5)) }
+        val error = catchBusinessError { update(slot, change(start = "17:00")) }
 
         assertThat(error).isInstanceOf(SlotInactive::class.java)
         assertThat(error.code).isEqualTo("status_conflict")
@@ -237,30 +210,12 @@ class SlotTest {
     }
 
     @Test
-    fun `DI45_theCapacityCanChangeWhenTheSlotHasBookings`() {
-        val slot = slot(capacity = 8)
-
-        update(slot, change(capacity = 10), hasBookings = true)
-
-        assertThat(slot.capacity).isEqualTo(10)
-    }
-
-    @Test
     fun `DI45_repeatingTheCurrentDayAndTimeIsNotAScheduleChange`() {
         val slot = slot()
 
-        update(slot, change(day = 2, start = "18:00", end = "20:00", capacity = 6), hasBookings = true)
+        update(slot, change(day = 2, start = "18:00", end = "20:00"), hasBookings = true)
 
-        assertThat(slot.capacity).isEqualTo(6)
-    }
-
-    @Test
-    fun `DI45_hasBookingsIsNotAskedWhenOnlyTheCapacityChanges`() {
-        val slot = slot()
-
-        slot.update(change(capacity = 5), listOf(slot), { error("must not be asked") }, emptyMap(), now)
-
-        assertThat(slot.capacity).isEqualTo(5)
+        assertThat(slot.startTime).isEqualTo(time("18:00"))
     }
 
     @Test
@@ -295,90 +250,6 @@ class SlotTest {
         val wednesday = slot(id = 2, day = DayOfWeek.WEDNESDAY, start = "19:00", end = "21:00")
 
         assertThatThrownBy { update(slot, change(day = 3), listOf(slot, wednesday)) }.isInstanceOf(SlotOverlap::class.java)
-    }
-
-    // ---- CU-03 E1, E3: capacity vs future lessons ----
-
-    @Test
-    fun `CU03_E1_theCapacityCannotGoBelowTheOccupancyOfFutureLessonsAndEveryOffenderIsListed`() {
-        val slot = slot(capacity = 10)
-        val occupancy = mapOf(
-            today.plusDays(1) to 9,
-            today.plusDays(8) to 7,
-            today.plusDays(15) to 4,
-        )
-
-        val error = catchBusinessError { update(slot, change(capacity = 6), occupancy = occupancy) }
-
-        assertThat(error).isInstanceOf(CapacityBelowOccupancy::class.java)
-        assertThat(error.code).isEqualTo("capacity_below_occupancy")
-        assertThat(error.details).isEqualTo(
-            CapacityBelowOccupancyDetails(
-                listOf(
-                    LessonOverCapacity(today.plusDays(1), occupancy = 9, spotsToFree = 3),
-                    LessonOverCapacity(today.plusDays(8), occupancy = 7, spotsToFree = 1),
-                ),
-            ),
-        )
-        assertThat(slot.capacity).isEqualTo(10)
-    }
-
-    @Test
-    fun `CU03_theCapacityCanEqualTheHighestFutureOccupancy`() {
-        val slot = slot(capacity = 10)
-
-        update(slot, change(capacity = 9), occupancy = mapOf(today.plusDays(1) to 9))
-
-        assertThat(slot.capacity).isEqualTo(9)
-    }
-
-    @Test
-    fun `CU03_E3_pastLessonsAreNeverConsidered`() {
-        val slot = slot(capacity = 10)
-
-        update(slot, change(capacity = 2), occupancy = mapOf(today.minusDays(7) to 9, today.minusDays(1) to 9))
-
-        assertThat(slot.capacity).isEqualTo(2)
-    }
-
-    @Test
-    fun `CU03_aLessonTodayThatAlreadyStartedIsNotFuture`() {
-        // The slot starts at 11:00 and it is 12:00: today's lesson has started.
-        val started = slot(start = "11:00", end = "13:00", capacity = 10)
-        update(started, change(capacity = 2), occupancy = mapOf(today to 9))
-        assertThat(started.capacity).isEqualTo(2)
-
-        // Starting at 18:00, today's lesson has not started yet and counts.
-        val ahead = slot(start = "18:00", end = "20:00", capacity = 10)
-        assertThatThrownBy { update(ahead, change(capacity = 2), occupancy = mapOf(today to 9)) }
-            .isInstanceOf(CapacityBelowOccupancy::class.java)
-    }
-
-    @Test
-    fun `CU03_aLessonStartingExactlyNowHasStarted`() {
-        val slot = slot(start = "12:00", end = "14:00", capacity = 10)
-
-        update(slot, change(capacity = 2), occupancy = mapOf(today to 9))
-
-        assertThat(slot.capacity).isEqualTo(2)
-    }
-
-    // ---- DI-43: overbooked lessons ----
-
-    @Test
-    fun `DI43_overbookedLessonsAreTheFutureOnesAboveCapacityByDate`() {
-        val slot = slot(capacity = 8)
-        val occupancy = mapOf(
-            today.plusDays(15) to 10,
-            today.plusDays(8) to 8,
-            today.plusDays(1) to 9,
-            today.minusDays(7) to 12,
-        )
-
-        assertThat(slot.overbookedLessons(occupancy, now)).containsExactly(
-            LessonOccupancy(today.plusDays(1), 9),
-            LessonOccupancy(today.plusDays(15), 10),
-        )
     }
 
     private fun catchBusinessError(block: () -> Unit): ar.melocoton.shared.domain.BusinessRuleViolation =

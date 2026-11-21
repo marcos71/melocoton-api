@@ -8,9 +8,14 @@ import java.time.LocalDateTime
 
 /**
  * A slot with its future lessons that are over capacity (DI-43) and whether its day and time can
- * still be changed (DI-63): what the slots screen shows.
+ * still be changed (DI-63), and how many fixed students it has (DI-66): what the slots screen shows.
  */
-class SlotOverview(val slot: Slot, val overbookedLessons: List<LessonOccupancy>, val scheduleEditable: Boolean)
+class SlotOverview(
+    val slot: Slot,
+    val overbookedLessons: List<LessonOccupancy>,
+    val scheduleEditable: Boolean,
+    val fixedStudents: Int,
+)
 
 /** The current date and time in the workshop zone, to hand to the domain. */
 internal fun Clock.workshopNow(): LocalDateTime = LocalDateTime.ofInstant(instant(), WorkshopTime.ZONE)

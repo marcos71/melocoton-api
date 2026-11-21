@@ -46,7 +46,6 @@ class SlotRepositoryJpa(
         entity.dayOfWeek = slot.dayOfWeek.value.toShort()
         entity.startTime = slot.startTime
         entity.endTime = slot.endTime
-        entity.capacity = slot.capacity
     }
 
     private companion object {

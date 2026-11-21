@@ -25,8 +25,8 @@ class ListLessonsTest {
 
     @Test
     fun `DI56_theOccupancyOfAllTheSlotsAndDatesIsOneAggregateQuery`() {
-        val tuesday = Slot(1, DayOfWeek.TUESDAY, LocalTime.of(18, 0), LocalTime.of(20, 0), 4, true)
-        val wednesday = Slot(2, DayOfWeek.WEDNESDAY, LocalTime.of(10, 0), LocalTime.of(12, 0), 4, true)
+        val tuesday = Slot(1, DayOfWeek.TUESDAY, LocalTime.of(18, 0), LocalTime.of(20, 0), true)
+        val wednesday = Slot(2, DayOfWeek.WEDNESDAY, LocalTime.of(10, 0), LocalTime.of(12, 0), true)
         every { slots.findAll(SlotStatusFilter.ACTIVE) } returns listOf(tuesday, wednesday)
         every { bookings.occupancyInRange(listOf(1L, 2L), any(), any()) } returns
             mapOf(LessonKey(1, LocalDate.of(2026, 11, 24)) to 3)

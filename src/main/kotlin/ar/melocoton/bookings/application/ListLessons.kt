@@ -6,6 +6,7 @@ import ar.melocoton.bookings.domain.lessonsOfSlot
 import ar.melocoton.bookings.domain.requireValidLessonRange
 import ar.melocoton.shared.domain.WorkshopTime
 import ar.melocoton.slots.application.port.SlotRepository
+import ar.melocoton.slots.domain.Slot
 import ar.melocoton.slots.domain.SlotNotFound
 import ar.melocoton.slots.domain.SlotStatusFilter
 import org.springframework.stereotype.Service
@@ -38,7 +39,7 @@ class ListLessons(
             .flatMap { slot ->
                 val ofSlot = occupancy.filterKeys { it.slotId == slot.id }.mapKeys { (key, _) -> key.lessonDate }
                 lessonsOfSlot(
-                    slot.id, slot.dayOfWeek, slot.startTime, slot.endTime, slot.capacity, from, to, ofSlot, now,
+                    slot.id, slot.dayOfWeek, slot.startTime, slot.endTime, Slot.CAPACITY, from, to, ofSlot, now,
                 )
             }
             .sortedWith(compareBy({ it.lessonDate }, { it.startTime }))

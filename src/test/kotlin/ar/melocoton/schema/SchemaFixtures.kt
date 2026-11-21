@@ -34,9 +34,8 @@ class SchemaFixtures(private val jdbc: JdbcTemplate) {
         email, role,
     )
 
-    fun slot(capacity: Int = 8): Long = id(
-        "INSERT INTO slot (day_of_week, start_time, end_time, capacity) VALUES (2, '18:00', '20:00', ?) RETURNING id",
-        capacity,
+    fun slot(): Long = id(
+        "INSERT INTO slot (day_of_week, start_time, end_time) VALUES (2, '18:00', '20:00') RETURNING id",
     )
 
     fun monthlyStudent(slotId: Long? = null): Long {

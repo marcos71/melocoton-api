@@ -9,7 +9,7 @@ import java.time.LocalTime
 
 class SlotBookingRuleTest {
 
-    private fun slot(active: Boolean) = Slot(1, DayOfWeek.TUESDAY, LocalTime.of(18, 0), LocalTime.of(20, 0), 8, active)
+    private fun slot(active: Boolean) = Slot(1, DayOfWeek.TUESDAY, LocalTime.of(18, 0), LocalTime.of(20, 0), active)
 
     @Test
     fun `RF08_anActiveSlotAcceptsBookings`() {

@@ -721,7 +721,7 @@
         "tags" : [ "Slots" ]
       },
       "patch" : {
-        "description" : "At least one field. When the capacity goes down it cannot fall below the occupancy of any future lesson; raising it is always allowed (DI-64). Day and time can change only while the slot has no bookings, and may not overlap another active slot.",
+        "description" : "At least one of day, start and end. They can change only while the slot has no bookings (scheduleEditable), and may not overlap another active slot. The capacity is the same for every slot (DI-64).",
         "operationId" : "update",
         "parameters" : [ {
           "in" : "path",
@@ -761,7 +761,7 @@
                 }
               }
             },
-            "description" : "validation_error: nothing to change, a field out of range, or the start is not before the end"
+            "description" : "validation_error: nothing to change, a day out of range, or the start is not before the end"
           },
           "403" : {
             "content" : {
@@ -791,7 +791,7 @@
                 }
               }
             },
-            "description" : "status_conflict: the slot is inactive. slot_has_bookings: day or time cannot change. slot_overlap: details is SlotOverlapDetails. capacity_below_occupancy: details is CapacityBelowOccupancyDetails"
+            "description" : "status_conflict: the slot is inactive. slot_has_bookings: day or time cannot change. slot_overlap: details is SlotOverlapDetails"
           },
           "429" : {
             "content" : {
@@ -1279,7 +1279,7 @@
     },
     "/api/v1/students/{id}/fixed-slot" : {
       "put" : {
-        "description" : "Generates the student's fixed bookings from today to the end of the rolling window, even over the slot's capacity: the response lists the future lessons of the slot that end up over capacity. If the student had another slot, its scheduled fixed bookings of lessons that have not started are cancelled (ENROLLMENT_CHANGE). Assigning the same slot again only fills the missing dates.",
+        "description" : "The slot takes at most as many fixed students as its capacity (DI-66). Generates the student's fixed bookings from today to the end of the rolling window, even on dates that drop-ins filled: the response lists the future lessons of the slot that end up over capacity. If the student had another slot, its scheduled fixed bookings of lessons that have not started are cancelled (ENROLLMENT_CHANGE). Assigning the same slot again only fills the missing dates.",
         "operationId" : "assignFixedSlot",
         "parameters" : [ {
           "in" : "path",
@@ -1349,7 +1349,7 @@
                 }
               }
             },
-            "description" : "enrollment_type_mismatch: the student is not monthly. student_inactive. slot_inactive"
+            "description" : "enrollment_type_mismatch: the student is not monthly. student_inactive. slot_inactive. fixed_students_full: the slot already has as many fixed students as its capacity; details is FixedStudentsFullDetails (DI-66)"
           },
           "429" : {
             "content" : {
@@ -1471,17 +1471,6 @@
         },
         "required" : [ "id", "lessonDate", "slotId", "status", "type" ]
       },
-      "CapacityBelowOccupancyDetails" : {
-        "properties" : {
-          "lessons" : {
-            "type" : "array",
-            "items" : {
-              "$ref" : "#/components/schemas/LessonOverCapacity"
-            }
-          }
-        },
-        "required" : [ "lessons" ]
-      },
       "CreateAssistantTeacherRequest" : {
         "type" : "object",
         "properties" : {
@@ -1506,13 +1495,6 @@
       "CreateSlotRequest" : {
         "type" : "object",
         "properties" : {
-          "capacity" : {
-            "type" : "integer",
-            "format" : "int32",
-            "description" : "Students the slot holds (DI-64)",
-            "maximum" : 12,
-            "minimum" : 1
-          },
           "dayOfWeek" : {
             "type" : "integer",
             "format" : "int32",
@@ -1531,7 +1513,7 @@
             "example" : "18:00"
           }
         },
-        "required" : [ "capacity", "dayOfWeek", "endTime", "startTime" ]
+        "required" : [ "dayOfWeek", "endTime", "startTime" ]
       },
       "CreateStudentRequest" : {
         "type" : "object",
@@ -1626,6 +1608,19 @@
         },
         "required" : [ "dayOfWeek", "endTime", "id", "startTime" ]
       },
+      "FixedStudentsFullDetails" : {
+        "properties" : {
+          "capacity" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "fixedStudents" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "capacity", "fixedStudents" ]
+      },
       "HealthResponse" : {
         "type" : "object",
         "properties" : {
@@ -1639,23 +1634,6 @@
           }
         },
         "required" : [ "database", "status" ]
-      },
-      "LessonOverCapacity" : {
-        "properties" : {
-          "lessonDate" : {
-            "type" : "string",
-            "format" : "date"
-          },
-          "occupancy" : {
-            "type" : "integer",
-            "format" : "int32"
-          },
-          "spotsToFree" : {
-            "type" : "integer",
-            "format" : "int32"
-          }
-        },
-        "required" : [ "lessonDate", "occupancy", "spotsToFree" ]
       },
       "LessonResponse" : {
         "type" : "object",
@@ -1827,6 +1805,11 @@
             "description" : "HH:mm",
             "example" : "18:00"
           },
+          "fixedStudents" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Active students whose fixed slot is this one; never above the capacity when assigned (DI-66)"
+          },
           "id" : {
             "type" : "integer",
             "format" : "int64"
@@ -1848,7 +1831,7 @@
             }
           }
         },
-        "required" : [ "active", "capacity", "dayOfWeek", "endTime", "id", "scheduleEditable", "startTime", "upcomingOverbookedLessons" ]
+        "required" : [ "active", "capacity", "dayOfWeek", "endTime", "fixedStudents", "id", "scheduleEditable", "startTime", "upcomingOverbookedLessons" ]
       },
       "SlotOverlapDetails" : {
         "properties" : {
@@ -2028,13 +2011,6 @@
       "UpdateSlotRequest" : {
         "type" : "object",
         "properties" : {
-          "capacity" : {
-            "type" : [ "integer", "null" ],
-            "format" : "int32",
-            "description" : "Students the slot holds (DI-64)",
-            "maximum" : 12,
-            "minimum" : 1
-          },
           "dayOfWeek" : {
             "type" : [ "integer", "null" ],
             "format" : "int32",

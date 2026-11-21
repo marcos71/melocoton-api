@@ -74,8 +74,8 @@ class DevSeed(
     /** Two weekly slots, only while there are none: a slot has no natural key to detect a repeat by. */
     private fun seedSlots() {
         if (jdbc.queryForObject("SELECT count(*) FROM slot", Int::class.java) != 0) return
-        jdbc.update("INSERT INTO slot (day_of_week, start_time, end_time, capacity) VALUES (2, '18:00', '20:00', 8)")
-        jdbc.update("INSERT INTO slot (day_of_week, start_time, end_time, capacity) VALUES (4, '10:00', '12:00', 6)")
+        jdbc.update("INSERT INTO slot (day_of_week, start_time, end_time) VALUES (2, '18:00', '20:00')")
+        jdbc.update("INSERT INTO slot (day_of_week, start_time, end_time) VALUES (4, '10:00', '12:00')")
     }
 
     /** The first active slot goes to every active sample monthly student that has none yet. */

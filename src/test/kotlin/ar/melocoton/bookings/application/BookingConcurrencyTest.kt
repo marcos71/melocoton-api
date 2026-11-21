@@ -3,6 +3,8 @@ package ar.melocoton.bookings.application
 import ar.melocoton.bookings.FixedClockTestConfig
 import ar.melocoton.bookings.domain.CapacityFull
 import ar.melocoton.schema.SchemaFixtures
+import ar.melocoton.slots.domain.FixedStudentsFull
+import ar.melocoton.slots.domain.Slot
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -58,16 +60,16 @@ class BookingConcurrencyTest(
     @Test
     fun `CP01_twoRequestsForTheLastSpot`() {
         repeat(5) {
-            val slotId = fixtures.slot(capacity = 8)
+            val slotId = fixtures.slot()
             try {
-                repeat(7) { fixtures.booking(fixtures.monthlyStudent(), slotId, date = lessonDate) }
+                repeat(Slot.CAPACITY - 1) { fixtures.booking(fixtures.monthlyStudent(), slotId, date = lessonDate) }
                 val students = List(2) { fixtures.dropInStudent() }
 
                 val outcomes = concurrently(students.map { id -> { bookDropInClass.book(id, slotId, lessonDate).id } })
 
                 assertThat(outcomes.count { it.isSuccess }).describedAs("saved: %s", outcomes).isEqualTo(1)
                 assertThat(outcomes.single { it.isFailure }.exceptionOrNull()).isInstanceOf(CapacityFull::class.java)
-                assertThat(activeBookings(slotId)).isEqualTo(8)
+                assertThat(activeBookings(slotId)).isEqualTo(Slot.CAPACITY)
                 assertThat(
                     jdbc.queryForObject("SELECT count(*) FROM booking WHERE slot_id = ? AND type = 'DROP_IN'", Int::class.java, slotId),
                 ).isEqualTo(1)
@@ -80,8 +82,9 @@ class BookingConcurrencyTest(
     @Test
     fun `CP01_cancellingADropInAndBookingTheFreedPlaceAtTheSameTimeLeavesNoDeadlockAndRespectsCapacity`() {
         repeat(5) {
-            val slotId = fixtures.slot(capacity = 1)
+            val slotId = fixtures.slot()
             try {
+                repeat(Slot.CAPACITY - 1) { fixtures.booking(fixtures.monthlyStudent(), slotId, date = lessonDate) }
                 val studentA = fixtures.dropInStudent()
                 val studentB = fixtures.dropInStudent()
                 val bookingA = fixtures.booking(studentA, slotId, type = "DROP_IN", date = lessonDate)
@@ -96,14 +99,14 @@ class BookingConcurrencyTest(
                 val (cancelOutcome, bookOutcome) = outcomes
                 assertThat(cancelOutcome.exceptionOrNull()).describedAs("cancel: %s", outcomes).isNull()
                 val statusA = jdbc.queryForObject("SELECT status FROM booking WHERE id = ?", String::class.java, bookingA)
-                assertThat(activeBookings(slotId)).isLessThanOrEqualTo(1)
+                assertThat(activeBookings(slotId)).isLessThanOrEqualTo(Slot.CAPACITY)
                 if (bookOutcome.isSuccess) {
                     assertThat(statusA).isEqualTo("CANCELLED")
-                    assertThat(activeBookings(slotId)).isEqualTo(1)
+                    assertThat(activeBookings(slotId)).isEqualTo(Slot.CAPACITY)
                 } else {
                     assertThat(bookOutcome.exceptionOrNull()).describedAs("book: %s", outcomes).isInstanceOf(CapacityFull::class.java)
                     assertThat(statusA).isEqualTo("CANCELLED")
-                    assertThat(activeBookings(slotId)).isZero()
+                    assertThat(activeBookings(slotId)).isEqualTo(Slot.CAPACITY - 1)
                 }
             } finally {
                 jdbc.update("UPDATE slot SET active = false WHERE id = ?", slotId)
@@ -113,16 +116,16 @@ class BookingConcurrencyTest(
 
     @Test
     fun `CP01_manyRequestsForFewSpotsSaveExactlyTheFreePlaces`() {
-        val slotId = fixtures.slot(capacity = 4)
+        val slotId = fixtures.slot()
         try {
-            repeat(2) { fixtures.booking(fixtures.monthlyStudent(), slotId, date = lessonDate) }
+            repeat(Slot.CAPACITY - 2) { fixtures.booking(fixtures.monthlyStudent(), slotId, date = lessonDate) }
             val students = List(6) { fixtures.dropInStudent() }
 
             val outcomes = concurrently(students.map { id -> { bookDropInClass.book(id, slotId, lessonDate).id } })
 
             assertThat(outcomes.count { it.isSuccess }).describedAs("saved: %s", outcomes).isEqualTo(2)
             assertThat(outcomes.filter { it.isFailure }.map { it.exceptionOrNull() }).allMatch { it is CapacityFull }
-            assertThat(activeBookings(slotId)).isEqualTo(4)
+            assertThat(activeBookings(slotId)).isEqualTo(Slot.CAPACITY)
         } finally {
             jdbc.update("UPDATE slot SET active = false WHERE id = ?", slotId)
         }
@@ -130,7 +133,7 @@ class BookingConcurrencyTest(
 
     @Test
     fun `DI41_theSameStudentBookingTheSameLessonTwiceAtOnceSavesOne`() {
-        val slotId = fixtures.slot(capacity = 8)
+        val slotId = fixtures.slot()
         try {
             val studentId = fixtures.dropInStudent()
 
@@ -206,6 +209,27 @@ class BookingConcurrencyTest(
             }
         } finally {
             jdbc.update("UPDATE slot SET active = false WHERE id IN (?, ?)", activeSlot, inactiveSlot)
+        }
+    }
+
+    @Test
+    fun `DI66_twoAssignmentsForTheLastFixedPlaceSaveExactlyOne`() {
+        repeat(5) {
+            val slotId = fixtures.slot()
+            try {
+                repeat(Slot.CAPACITY - 1) { fixtures.monthlyStudent(slotId) }
+                val students = List(2) { fixtures.monthlyStudent() }
+
+                val outcomes = concurrently(students.map { id -> { assignFixedSlot.assign(id, slotId).slot.id } })
+
+                assertThat(outcomes.count { it.isSuccess }).describedAs("saved: %s", outcomes).isEqualTo(1)
+                assertThat(outcomes.single { it.isFailure }.exceptionOrNull()).isInstanceOf(FixedStudentsFull::class.java)
+                assertThat(
+                    jdbc.queryForObject("SELECT count(*) FROM student WHERE fixed_slot_id = ?", Int::class.java, slotId),
+                ).isEqualTo(Slot.CAPACITY)
+            } finally {
+                jdbc.update("UPDATE slot SET active = false WHERE id = ?", slotId)
+            }
         }
     }
 

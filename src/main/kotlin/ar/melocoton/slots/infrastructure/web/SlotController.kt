@@ -62,7 +62,7 @@ class SlotController(
         ),
     )
     fun create(@RequestBody request: CreateSlotRequest): SlotResponse =
-        createSlot.create(request.dayOfWeek, request.startTime, request.endTime, request.capacity).toResponse()
+        createSlot.create(request.dayOfWeek, request.startTime, request.endTime).toResponse()
 
     @GetMapping
     @Operation(
@@ -105,15 +105,14 @@ class SlotController(
     @PatchMapping("/{id}")
     @Operation(
         summary = "Edit a slot (CU-03, RF-06, DI-45)",
-        description = "At least one field. When the capacity goes down it cannot fall below the occupancy of any future lesson; " +
-            "raising it is always allowed (DI-64). " +
-            "Day and time can change only while the slot has no bookings, and may not overlap another active slot.",
+        description = "At least one of day, start and end. They can change only while the slot has no bookings " +
+            "(scheduleEditable), and may not overlap another active slot. The capacity is the same for every slot (DI-64).",
     )
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "The slot after the change"),
         ApiResponse(
             responseCode = "400",
-            description = "validation_error: nothing to change, a field out of range, or the start is not before the end",
+            description = "validation_error: nothing to change, a day out of range, or the start is not before the end",
             content = [Content(schema = Schema(implementation = ErrorResponse::class))],
         ),
         ApiResponse(
@@ -129,14 +128,13 @@ class SlotController(
         ApiResponse(
             responseCode = "409",
             description = "status_conflict: the slot is inactive. slot_has_bookings: day or time cannot change. " +
-                "slot_overlap: details is SlotOverlapDetails. " +
-                "capacity_below_occupancy: details is CapacityBelowOccupancyDetails",
+                "slot_overlap: details is SlotOverlapDetails",
             content = [Content(schema = Schema(implementation = ErrorResponse::class))],
         ),
     )
     fun update(@PathVariable id: Long, @RequestBody request: UpdateSlotRequest): SlotItemResponse =
         updateSlot.update(
             id,
-            SlotChange(request.dayOfWeek, request.startTime, request.endTime, request.capacity),
+            SlotChange(request.dayOfWeek, request.startTime, request.endTime),
         ).toResponse()
 }

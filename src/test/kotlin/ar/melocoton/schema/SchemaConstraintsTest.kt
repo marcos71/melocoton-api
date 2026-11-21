@@ -103,31 +103,25 @@ class SchemaConstraintsTest(@Autowired private val jdbc: JdbcTemplate) {
     // --- Slots and lessons ---------------------------------------------------------------------
 
     @Test
-    fun `a slot needs a positive capacity`() {
-        assertFailsWithSqlState(CHECK_VIOLATION) { f.slot(capacity = 0) }
-    }
+    fun `DI-64 the capacity is not stored because every slot holds 12`() {
+        val columns = jdbc.queryForList(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = 'slot'", String::class.java,
+        )
 
-    @Test
-    fun `DI-64 a slot holds at most 12 students`() {
-        assertFailsWithSqlState(CHECK_VIOLATION) { f.slot(capacity = 13) }
-    }
-
-    @Test
-    fun `DI-64 a slot of exactly 12 students is accepted`() {
-        f.slot(capacity = 12)
+        assertThat(columns).doesNotContain("capacity")
     }
 
     @Test
     fun `a slot ends after it starts`() {
         assertFailsWithSqlState(CHECK_VIOLATION) {
-            jdbc.update("INSERT INTO slot (day_of_week, start_time, end_time, capacity) VALUES (2, '20:00', '18:00', 8)")
+            jdbc.update("INSERT INTO slot (day_of_week, start_time, end_time) VALUES (2, '20:00', '18:00')")
         }
     }
 
     @Test
     fun `a slot day is between Monday (1) and Sunday (7)`() {
         assertFailsWithSqlState(CHECK_VIOLATION) {
-            jdbc.update("INSERT INTO slot (day_of_week, start_time, end_time, capacity) VALUES (8, '18:00', '20:00', 8)")
+            jdbc.update("INSERT INTO slot (day_of_week, start_time, end_time) VALUES (8, '18:00', '20:00')")
         }
     }
 

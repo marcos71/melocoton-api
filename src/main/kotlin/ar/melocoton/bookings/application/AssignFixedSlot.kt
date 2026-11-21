@@ -20,8 +20,9 @@ import java.time.Clock
 class FixedSlotAssignment(val slot: Slot, val overbookedLessons: List<LessonOccupancy>)
 
 /**
- * RF-08, DI-27, DI-42, DI-43: the lead teacher assigns or replaces a monthly student's fixed slot.
- * The fixed bookings of the rolling window are generated, even over capacity. When the student had another
+ * RF-08, DI-27, DI-42, DI-43, DI-66: the lead teacher assigns or replaces a monthly student's fixed slot.
+ * The slot takes at most as many fixed students as its capacity (DI-66); the fixed bookings of the
+ * rolling window are generated even over capacity, when drop-ins took some dates. When the student had another
  * slot, its scheduled fixed bookings of lessons that have not started are cancelled by enrollment change.
  *
  * Lock order (every booking use case): the student, then the slots by ascending id.
@@ -46,6 +47,8 @@ class AssignFixedSlot(
         val locked = listOfNotNull(previousSlotId, slotId).distinct().sorted().associateWith { slots.lockById(it) }
         val slot = locked.getValue(slotId) ?: throw SlotNotFound()
         slot.requireAcceptsBookings()
+        // After the slot lock, so two concurrent assignments cannot both take the last fixed place (D-43, DI-66).
+        slot.requireRoomForFixedStudent(students.countFixedStudents(slotId, excluding = studentId))
 
         val previous = previousSlotId?.let { locked[it] }
         if (previous != null && previous.id != slot.id) {
