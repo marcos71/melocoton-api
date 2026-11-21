@@ -44,7 +44,7 @@ class NewSlot private constructor(
  * The fields a PATCH changes. At least one is present and each one is valid on its own; whether the
  * start is before the end depends on the slot being edited, so [Slot.update] checks that.
  *
- * @throws InvalidSlot nothing to change, the day is not 1 to 7, or the capacity is not positive
+ * @throws InvalidSlot nothing to change, the day is not 1 to 7, or the capacity is not 1 to 12 (DI-64)
  */
 class SlotChange(dayOfWeek: Int?, val startTime: LocalTime?, val endTime: LocalTime?, val capacity: Int?) {
     val dayOfWeek: DayOfWeek? = dayOfWeek?.let(::dayOfWeekOf)
@@ -81,9 +81,21 @@ class Slot(
     var active: Boolean = active
         private set
 
+    companion object {
+        /** A slot holds 1 to 12 students (DI-64). */
+        const val MIN_CAPACITY = 1
+        const val MAX_CAPACITY = 12
+    }
+
     /** Two slots overlap when each starts before the other ends; touching ends do not overlap (DI-25). */
     fun overlaps(dayOfWeek: DayOfWeek, startTime: LocalTime, endTime: LocalTime): Boolean =
         this.dayOfWeek == dayOfWeek && this.startTime < endTime && startTime < this.endTime
+
+    /**
+     * Whether day and time can still be changed: the slot is active and never had a booking of any
+     * status, because a booking keeps the slot and the date, not the time (DI-45, DI-63).
+     */
+    fun scheduleEditable(hasBookings: Boolean): Boolean = active && !hasBookings
 
     /** @throws SlotNotAcceptingBookings the slot is deactivated */
     fun requireAcceptsBookings() {
@@ -95,9 +107,12 @@ class Slot(
         futureLessons(occupancyByDate, now).filter { it.occupancy > capacity }
 
     /**
-     * Applies a PATCH (CU-03, RF-06, DI-45). The capacity is always editable, but never below the
-     * occupancy of a future lesson; day and time only while the slot has no bookings, and without
-     * overlapping another active slot. Past lessons are neither touched nor considered (CU-03 E3).
+     * Applies a PATCH (CU-03, RF-06, DI-45, DI-64). The capacity is always editable, but when it goes
+     * down it cannot fall below the occupancy of a future lesson. Raising it (or keeping it) is always
+     * allowed, even if a lesson stays overbooked: fixed bookings may exceed the capacity (DI-43), and
+     * with more than 12 of them no valid capacity would ever clear the check. Day and time change only
+     * while [scheduleEditable], and without overlapping another active slot. Past lessons are neither
+     * touched nor considered (CU-03 E3).
      *
      * @param activeSlots all active slots (any day); those of the target day are checked for overlap
      * @param hasBookings asked only when day or time change
@@ -107,7 +122,7 @@ class Slot(
      * @throws InvalidSlot the start is not before the end
      * @throws SlotHasBookings day or time change and the slot has bookings
      * @throws SlotOverlap the new day and time overlap another active slot
-     * @throws CapacityBelowOccupancy some future lesson has more occupied places than the new capacity
+     * @throws CapacityBelowOccupancy the capacity goes down and some future lesson has more occupied places than the new one
      */
     fun update(
         change: SlotChange,
@@ -124,15 +139,17 @@ class Slot(
 
         val changesSchedule = newDay != dayOfWeek || newStart != startTime || newEnd != endTime
         if (changesSchedule) {
-            if (hasBookings()) throw SlotHasBookings()
+            if (!scheduleEditable(hasBookings())) throw SlotHasBookings()
             findOverlap(newDay, newStart, newEnd, activeSlots, ignoring = id)?.let { throw SlotOverlap(it) }
         }
 
         val newCapacity = change.capacity ?: capacity
-        val offending = futureLessons(occupancyByDate, now)
-            .filter { it.occupancy > newCapacity }
-            .map { LessonOverCapacity(it.lessonDate, it.occupancy, spotsToFree = it.occupancy - newCapacity) }
-        if (offending.isNotEmpty()) throw CapacityBelowOccupancy(newCapacity, offending)
+        if (newCapacity < capacity) {
+            val offending = futureLessons(occupancyByDate, now)
+                .filter { it.occupancy > newCapacity }
+                .map { LessonOverCapacity(it.lessonDate, it.occupancy, spotsToFree = it.occupancy - newCapacity) }
+            if (offending.isNotEmpty()) throw CapacityBelowOccupancy(newCapacity, offending)
+        }
 
         dayOfWeek = newDay
         startTime = newStart
@@ -164,5 +181,7 @@ private fun requireValidTimes(start: LocalTime, end: LocalTime) {
 }
 
 private fun requireValidCapacity(capacity: Int) {
-    if (capacity <= 0) throw InvalidSlot("El cupo tiene que ser mayor a cero.")
+    if (capacity !in Slot.MIN_CAPACITY..Slot.MAX_CAPACITY) {
+        throw InvalidSlot("El cupo tiene que ser un número de ${Slot.MIN_CAPACITY} a ${Slot.MAX_CAPACITY}.")
+    }
 }

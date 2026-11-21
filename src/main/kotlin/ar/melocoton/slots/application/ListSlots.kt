@@ -17,9 +17,11 @@ class ListSlots(
     @Transactional(readOnly = true)
     fun list(status: SlotStatusFilter): List<SlotOverview> {
         val now = clock.workshopNow()
-        return slots.findAll(status).map { slot ->
+        val all = slots.findAll(status)
+        val withBookings = bookings.slotIdsWithBookings(all.map { it.id })
+        return all.map { slot ->
             val occupancy = bookings.occupancyByLessonDate(slot.id, now.toLocalDate())
-            SlotOverview(slot, slot.overbookedLessons(occupancy, now))
+            SlotOverview(slot, slot.overbookedLessons(occupancy, now), slot.scheduleEditable(slot.id in withBookings))
         }
     }
 }

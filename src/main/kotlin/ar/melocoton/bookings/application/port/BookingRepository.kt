@@ -27,6 +27,9 @@ interface BookingRepository {
     /** True when the slot has any booking, in any state and of any date. */
     fun existsForSlot(slotId: Long): Boolean
 
+    /** Of the given slots, the ids of those with any booking, in any state and of any date, in one query (DI-63). */
+    fun slotIdsWithBookings(slotIds: Collection<Long>): Set<Long>
+
     /** The student's bookings in the slot, in any state, with lesson dates from [fromDate] to [toDate] inclusive. */
     fun existingStudentBookings(studentId: Long, slotId: Long, fromDate: LocalDate, toDate: LocalDate): List<ExistingBooking>
 

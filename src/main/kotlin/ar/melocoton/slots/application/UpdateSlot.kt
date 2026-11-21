@@ -25,8 +25,10 @@ class UpdateSlot(
 
         val now = clock.workshopNow()
         val occupancy = bookings.occupancyByLessonDate(id, now.toLocalDate())
-        slot.update(change, active, hasBookings = { bookings.existsForSlot(id) }, occupancyByDate = occupancy, now = now)
+        // Asked at most once: when the schedule changes, and for the response.
+        val hasBookings by lazy { bookings.existsForSlot(id) }
+        slot.update(change, active, hasBookings = { hasBookings }, occupancyByDate = occupancy, now = now)
         slots.save(slot)
-        return SlotOverview(slot, slot.overbookedLessons(occupancy, now))
+        return SlotOverview(slot, slot.overbookedLessons(occupancy, now), slot.scheduleEditable(hasBookings))
     }
 }

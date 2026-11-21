@@ -11,7 +11,7 @@ private const val TIME_EXAMPLE = "18:00"
 
 /**
  * Body of POST /api/v1/slots. Every field is required (CU-03). The domain checks the ranges, so
- * a day out of 1 to 7, a start that is not before the end, or a capacity of zero are 400 validation_error.
+ * a day out of 1 to 7, a start that is not before the end, or a capacity out of 1 to 12 are 400 validation_error.
  */
 class CreateSlotRequest(
     @field:Schema(description = "ISO day of the week: 1 is Monday, 7 is Sunday", minimum = "1", maximum = "7")
@@ -20,7 +20,7 @@ class CreateSlotRequest(
     val startTime: LocalTime,
     @field:Schema(type = "string", example = TIME_EXAMPLE, description = "HH:mm")
     val endTime: LocalTime,
-    @field:Schema(minimum = "1")
+    @field:Schema(minimum = "1", maximum = "12", description = "Students the slot holds (DI-64)")
     val capacity: Int,
 )
 
@@ -32,7 +32,7 @@ class UpdateSlotRequest(
     val startTime: LocalTime? = null,
     @field:Schema(type = "string", example = TIME_EXAMPLE, description = "HH:mm")
     val endTime: LocalTime? = null,
-    @field:Schema(minimum = "1")
+    @field:Schema(minimum = "1", maximum = "12", description = "Students the slot holds (DI-64)")
     val capacity: Int? = null,
 )
 
@@ -62,6 +62,11 @@ data class SlotItemResponse(
     val active: Boolean,
     @field:Schema(description = "Lessons not started yet whose occupancy is above the capacity, by date")
     val upcomingOverbookedLessons: List<OverbookedLessonResponse>,
+    @field:Schema(
+        description = "Whether day and time can still be changed: the slot is active and never had a booking (DI-45, DI-63)",
+        requiredMode = Schema.RequiredMode.REQUIRED,
+    )
+    val scheduleEditable: Boolean,
 )
 
 /** A lesson over capacity: its date and how many places are occupied. */
@@ -86,4 +91,5 @@ fun SlotOverview.toResponse() = SlotItemResponse(
     capacity = slot.capacity,
     active = slot.active,
     upcomingOverbookedLessons = overbookedLessons.map { it.toResponse() },
+    scheduleEditable = scheduleEditable,
 )

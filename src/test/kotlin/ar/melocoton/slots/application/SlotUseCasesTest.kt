@@ -82,12 +82,29 @@ class SlotUseCasesTest {
         every { slots.findAll(SlotStatusFilter.ALL) } returns listOf(full, empty)
         every { bookings.occupancyByLessonDate(1, today) } returns mapOf(today.plusDays(1) to 3, today.plusDays(8) to 2)
         every { bookings.occupancyByLessonDate(2, today) } returns emptyMap()
+        every { bookings.slotIdsWithBookings(listOf(1L, 2L)) } returns setOf(1L)
 
         val result = ListSlots(slots, bookings, clock).list(SlotStatusFilter.ALL)
 
         assertThat(result.map { it.slot.id }).containsExactly(1, 2)
         assertThat(result[0].overbookedLessons.map { it.lessonDate to it.occupancy }).containsExactly(today.plusDays(1) to 3)
         assertThat(result[1].overbookedLessons).isEmpty()
+        // DI-63: one query for all the slots, not one per slot.
+        assertThat(result.map { it.scheduleEditable }).containsExactly(false, true)
+        verify(exactly = 1) { bookings.slotIdsWithBookings(any()) }
+    }
+
+    @Test
+    fun `DI63_getReportsWhetherTheScheduleIsEditable`() {
+        every { slots.findById(1) } returns aSlot(id = 1)
+        every { bookings.occupancyByLessonDate(1, today) } returns emptyMap()
+        every { bookings.existsForSlot(1) } returns false
+
+        assertThat(GetSlot(slots, bookings, clock).get(1).scheduleEditable).isTrue()
+
+        every { bookings.existsForSlot(1) } returns true
+
+        assertThat(GetSlot(slots, bookings, clock).get(1).scheduleEditable).isFalse()
     }
 
     @Test
@@ -105,13 +122,15 @@ class SlotUseCasesTest {
         stubLocks(target)
         every { bookings.occupancyByLessonDate(1, today) } returns mapOf(today.plusDays(1) to 5)
         every { slots.save(target) } just runs
+        every { bookings.existsForSlot(1) } returns true
 
         val result = UpdateSlot(slots, bookings, clock).update(1, SlotChange(null, null, null, 6))
 
         assertThat(result.slot.capacity).isEqualTo(6)
+        assertThat(result.scheduleEditable).isFalse()
         verify { slots.save(target) }
-        // Only the capacity changed, so nobody asked whether the slot has bookings.
-        verify(exactly = 0) { bookings.existsForSlot(any()) }
+        // Asked once, only for the response: the capacity alone does not need it (DI-63).
+        verify(exactly = 1) { bookings.existsForSlot(1) }
     }
 
     @Test

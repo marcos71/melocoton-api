@@ -105,7 +105,8 @@ class SlotController(
     @PatchMapping("/{id}")
     @Operation(
         summary = "Edit a slot (CU-03, RF-06, DI-45)",
-        description = "At least one field. The capacity cannot go below the occupancy of any future lesson. " +
+        description = "At least one field. When the capacity goes down it cannot fall below the occupancy of any future lesson; " +
+            "raising it is always allowed (DI-64). " +
             "Day and time can change only while the slot has no bookings, and may not overlap another active slot.",
     )
     @ApiResponses(

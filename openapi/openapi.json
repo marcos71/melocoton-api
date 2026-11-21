@@ -721,7 +721,7 @@
         "tags" : [ "Slots" ]
       },
       "patch" : {
-        "description" : "At least one field. The capacity cannot go below the occupancy of any future lesson. Day and time can change only while the slot has no bookings, and may not overlap another active slot.",
+        "description" : "At least one field. When the capacity goes down it cannot fall below the occupancy of any future lesson; raising it is always allowed (DI-64). Day and time can change only while the slot has no bookings, and may not overlap another active slot.",
         "operationId" : "update",
         "parameters" : [ {
           "in" : "path",
@@ -1509,6 +1509,8 @@
           "capacity" : {
             "type" : "integer",
             "format" : "int32",
+            "description" : "Students the slot holds (DI-64)",
+            "maximum" : 12,
             "minimum" : 1
           },
           "dayOfWeek" : {
@@ -1829,6 +1831,10 @@
             "type" : "integer",
             "format" : "int64"
           },
+          "scheduleEditable" : {
+            "type" : "boolean",
+            "description" : "Whether day and time can still be changed: the slot is active and never had a booking (DI-45, DI-63)"
+          },
           "startTime" : {
             "type" : "string",
             "description" : "HH:mm",
@@ -1842,7 +1848,7 @@
             }
           }
         },
-        "required" : [ "active", "capacity", "dayOfWeek", "endTime", "id", "startTime", "upcomingOverbookedLessons" ]
+        "required" : [ "active", "capacity", "dayOfWeek", "endTime", "id", "scheduleEditable", "startTime", "upcomingOverbookedLessons" ]
       },
       "SlotOverlapDetails" : {
         "properties" : {
@@ -2025,6 +2031,8 @@
           "capacity" : {
             "type" : [ "integer", "null" ],
             "format" : "int32",
+            "description" : "Students the slot holds (DI-64)",
+            "maximum" : 12,
             "minimum" : 1
           },
           "dayOfWeek" : {

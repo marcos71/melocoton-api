@@ -43,6 +43,9 @@ class BookingRepositoryJpa(
 
     override fun existsForSlot(slotId: Long): Boolean = jpa.existsBySlotId(slotId)
 
+    override fun slotIdsWithBookings(slotIds: Collection<Long>): Set<Long> =
+        if (slotIds.isEmpty()) emptySet() else jpa.findSlotIdsWithBookings(slotIds).toSet()
+
     override fun existingStudentBookings(
         studentId: Long,
         slotId: Long,

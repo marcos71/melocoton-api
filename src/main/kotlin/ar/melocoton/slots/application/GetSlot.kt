@@ -19,6 +19,10 @@ class GetSlot(
         val slot = slots.findById(id) ?: throw SlotNotFound()
         val now = clock.workshopNow()
         val occupancy = bookings.occupancyByLessonDate(slot.id, now.toLocalDate())
-        return SlotOverview(slot, slot.overbookedLessons(occupancy, now))
+        return SlotOverview(
+            slot,
+            slot.overbookedLessons(occupancy, now),
+            scheduleEditable = slot.scheduleEditable(bookings.existsForSlot(slot.id)),
+        )
     }
 }

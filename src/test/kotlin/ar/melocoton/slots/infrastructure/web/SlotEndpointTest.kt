@@ -133,6 +133,7 @@ class SlotEndpointTest(
         create(lead, body(start = "18:00", end = "18:00")).isValidationError()
         create(lead, body(capacity = 0)).isValidationError()
         create(lead, body(capacity = -3)).isValidationError()
+        create(lead, body(capacity = 13)).isValidationError()
         create(lead, body() - "capacity").isValidationError()
         create(lead, body() - "dayOfWeek").isValidationError()
         create(lead, body(start = "25:00")).isValidationError()
@@ -241,6 +242,70 @@ class SlotEndpointTest(
             jsonPath("$.error.code") { value("not_found") }
         }
     }
+
+    @Test
+    fun `DI64_capacityAboveTwelveIsAValidationErrorOnCreateAndPatch`() {
+        val lead = lead
+        create(lead, body(capacity = 13)).andExpect {
+            status { isBadRequest() }
+            jsonPath("$.error.code") { value("validation_error") }
+            jsonPath("$.error.message") { value("El cupo tiene que ser un número de 1 a 12.") }
+        }
+        val id = createdId(lead, body(capacity = 12))
+
+        patch(lead, id, mapOf("capacity" to 13)).isValidationError()
+        patch(lead, id, mapOf("capacity" to 0)).isValidationError()
+    }
+
+    @Test
+    fun `DI63_scheduleEditableIsTrueForASlotThatNeverHadBookings`() {
+        val lead = lead
+        val id = createdId(lead, body())
+
+        get(lead, id).andExpect { jsonPath("$.scheduleEditable") { value(true) } }
+        assertThat(scheduleEditableInList(lead, id)).isTrue()
+    }
+
+    @Test
+    fun `DI63_scheduleEditableIsFalseWithOnlyACancelledBooking`() {
+        val lead = lead
+        val id = createdId(lead, body())
+        bookings(id, today.plusDays(10), "CANCELLED", 1)
+
+        get(lead, id).andExpect { jsonPath("$.scheduleEditable") { value(false) } }
+        assertThat(scheduleEditableInList(lead, id)).isFalse()
+    }
+
+    @Test
+    fun `DI63_scheduleEditableIsFalseWithAPastBooking`() {
+        val lead = lead
+        val id = createdId(lead, body())
+        bookings(id, today.minusDays(10), "PRESENT", 1)
+
+        get(lead, id).andExpect { jsonPath("$.scheduleEditable") { value(false) } }
+        assertThat(scheduleEditableInList(lead, id)).isFalse()
+    }
+
+    @Test
+    fun `DI63_scheduleEditableIsFalseForAnInactiveSlotAndTheListMixesBothKinds`() {
+        val lead = lead
+        val free = createdId(lead, body(day = 1))
+        val used = createdId(lead, body(day = 2))
+        val inactive = createdId(lead, body(day = 3))
+        bookings(used, today.plusDays(10), "SCHEDULED", 1)
+        deactivate(inactive)
+
+        val items = json.readTree(list(lead, "?status=ALL").andReturn().response.contentAsString)
+            .associate { it["id"].asLong() to it["scheduleEditable"].asBoolean() }
+
+        assertThat(items[free]).isTrue()
+        assertThat(items[used]).isFalse()
+        assertThat(items[inactive]).isFalse()
+    }
+
+    private fun scheduleEditableInList(token: String, id: Long): Boolean =
+        json.readTree(list(token).andReturn().response.contentAsString)
+            .first { it["id"].asLong() == id }["scheduleEditable"].asBoolean()
 
     @Test
     fun `DI34_nonNumericIdIsNotFound`() {
@@ -358,6 +423,36 @@ class SlotEndpointTest(
         assertThat(jdbc.queryForObject("SELECT capacity FROM slot WHERE id = ?", Int::class.java, id)).isEqualTo(10)
         // Exactly the highest occupancy fits.
         patch(lead, id, mapOf("capacity" to 7)).andExpect { status { isOk() } }
+    }
+
+    @Test
+    fun `DI64_raisingTheCapacityOfASlotOverbookedAboveTwelveIsAllowed`() {
+        val lead = lead
+        val id = createdId(lead, body(capacity = 8))
+        bookings(id, today.plusDays(7), "SCHEDULED", 13)
+
+        patch(lead, id, mapOf("capacity" to 12)).andExpect {
+            status { isOk() }
+            jsonPath("$.capacity") { value(12) }
+            jsonPath("$.upcomingOverbookedLessons.length()") { value(1) }
+            jsonPath("$.upcomingOverbookedLessons[0].occupancy") { value(13) }
+        }
+        // Lowering is still checked.
+        patch(lead, id, mapOf("capacity" to 11)).andExpect {
+            status { isConflict() }
+            jsonPath("$.error.code") { value("capacity_below_occupancy") }
+        }
+    }
+
+    @Test
+    fun `DI63_thePatchResponseCarriesScheduleEditable`() {
+        val lead = lead
+        val free = createdId(lead, body(day = 1))
+        val used = createdId(lead, body(day = 2))
+        bookings(used, today.plusDays(7), "SCHEDULED", 1)
+
+        patch(lead, free, mapOf("capacity" to 5)).andExpect { jsonPath("$.scheduleEditable") { value(true) } }
+        patch(lead, used, mapOf("capacity" to 5)).andExpect { jsonPath("$.scheduleEditable") { value(false) } }
     }
 
     @Test

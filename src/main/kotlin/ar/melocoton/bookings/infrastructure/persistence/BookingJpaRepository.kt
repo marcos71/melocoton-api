@@ -38,6 +38,9 @@ interface BookingJpaRepository : JpaRepository<BookingEntity, Long> {
 
     fun existsBySlotId(slotId: Long): Boolean
 
+    @Query("SELECT DISTINCT b.slotId FROM BookingEntity b WHERE b.slotId IN :slotIds")
+    fun findSlotIdsWithBookings(slotIds: Collection<Long>): List<Long>
+
     // A projection (not the entities), so the answer always comes from the database and not from the persistence context.
     @Query(
         "SELECT b.lessonDate AS lessonDate, b.status AS status, b.cancellationReason AS cancellationReason " +

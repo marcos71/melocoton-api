@@ -108,6 +108,16 @@ class SchemaConstraintsTest(@Autowired private val jdbc: JdbcTemplate) {
     }
 
     @Test
+    fun `DI-64 a slot holds at most 12 students`() {
+        assertFailsWithSqlState(CHECK_VIOLATION) { f.slot(capacity = 13) }
+    }
+
+    @Test
+    fun `DI-64 a slot of exactly 12 students is accepted`() {
+        f.slot(capacity = 12)
+    }
+
+    @Test
     fun `a slot ends after it starts`() {
         assertFailsWithSqlState(CHECK_VIOLATION) {
             jdbc.update("INSERT INTO slot (day_of_week, start_time, end_time, capacity) VALUES (2, '20:00', '18:00', 8)")

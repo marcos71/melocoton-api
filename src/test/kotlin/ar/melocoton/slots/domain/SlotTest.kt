@@ -69,6 +69,86 @@ class SlotTest {
         assertThatThrownBy { create(2, "18:00", "20:00", -1) }.isInstanceOf(InvalidSlot::class.java)
     }
 
+    // ---- DI-64: capacity from 1 to 12 ----
+
+    @Test
+    fun `DI64_capacityAboveTwelveIsRejectedOnCreate`() {
+        val error = catchBusinessError { create(2, "18:00", "20:00", 13) }
+
+        assertThat(error).isInstanceOf(InvalidSlot::class.java)
+        assertThat(error.message).isEqualTo("El cupo tiene que ser un número de 1 a 12.")
+    }
+
+    @Test
+    fun `DI64_capacityOfOneAndTwelveAreAcceptedOnCreate`() {
+        assertThat(create(2, "18:00", "20:00", 1).capacity).isEqualTo(1)
+        assertThat(create(2, "18:00", "20:00", 12).capacity).isEqualTo(12)
+    }
+
+    @Test
+    fun `DI64_capacityOutOfRangeIsRejectedOnChange`() {
+        assertThatThrownBy { change(capacity = 0) }.isInstanceOf(InvalidSlot::class.java)
+        assertThatThrownBy { change(capacity = 13) }.isInstanceOf(InvalidSlot::class.java)
+        assertThat(change(capacity = 1).capacity).isEqualTo(1)
+        assertThat(change(capacity = 12).capacity).isEqualTo(12)
+    }
+
+    @Test
+    fun `DI64_raisingTheCapacityIsAllowedEvenIfALessonStaysOverbooked`() {
+        val slot = slot(capacity = 8)
+
+        update(slot, change(capacity = 12), occupancy = mapOf(today.plusDays(1) to 13))
+
+        assertThat(slot.capacity).isEqualTo(12)
+    }
+
+    @Test
+    fun `DI64_keepingTheCapacityIsAllowedEvenIfALessonIsOverbooked`() {
+        val slot = slot(capacity = 8)
+
+        update(slot, change(capacity = 8), occupancy = mapOf(today.plusDays(1) to 13))
+
+        assertThat(slot.capacity).isEqualTo(8)
+    }
+
+    @Test
+    fun `DI64_loweringTheCapacityStillCannotGoBelowAFutureOccupancy`() {
+        val slot = slot(capacity = 12)
+
+        val error = catchBusinessError { update(slot, change(capacity = 5), occupancy = mapOf(today.plusDays(1) to 9)) }
+
+        assertThat(error).isInstanceOf(CapacityBelowOccupancy::class.java)
+        assertThat(error.details).isEqualTo(
+            CapacityBelowOccupancyDetails(listOf(LessonOverCapacity(today.plusDays(1), occupancy = 9, spotsToFree = 4))),
+        )
+    }
+
+    @Test
+    fun `DI64_loweringTheCapacityToExactlyTheOccupancyIsAllowed`() {
+        val slot = slot(capacity = 12)
+
+        update(slot, change(capacity = 9), occupancy = mapOf(today.plusDays(1) to 9))
+
+        assertThat(slot.capacity).isEqualTo(9)
+    }
+
+    // ---- DI-63: scheduleEditable ----
+
+    @Test
+    fun `DI63_theScheduleIsEditableWhenTheSlotIsActiveAndNeverHadBookings`() {
+        assertThat(slot().scheduleEditable(hasBookings = false)).isTrue()
+    }
+
+    @Test
+    fun `DI63_theScheduleIsNotEditableOnceTheSlotHadAnyBooking`() {
+        assertThat(slot().scheduleEditable(hasBookings = true)).isFalse()
+    }
+
+    @Test
+    fun `DI63_theScheduleOfAnInactiveSlotIsNotEditable`() {
+        assertThat(slot(active = false).scheduleEditable(hasBookings = false)).isFalse()
+    }
+
     // ---- DI-25: overlap ----
 
     @Test
