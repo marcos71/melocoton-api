@@ -30,7 +30,8 @@ class CreateStudentRequest(
         type = "string",
         format = "date",
         example = "2026-11-02",
-        description = "Only for MONTHLY, where it defaults to today; DROP_IN must not send it",
+        description = "Only for MONTHLY, where it defaults to today; DROP_IN must not send it. " +
+            "From the first day of the current month to one month after today (DI-58)",
     )
     val monthlyStartDate: LocalDate? = null,
 ) {

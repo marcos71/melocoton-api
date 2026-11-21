@@ -7,6 +7,7 @@ import ar.melocoton.bookings.domain.BookingStatus
 import ar.melocoton.bookings.domain.BookingType
 import ar.melocoton.bookings.domain.CancellationReason
 import ar.melocoton.bookings.domain.ExistingBooking
+import ar.melocoton.bookings.domain.LessonKey
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.jdbc.core.JdbcTemplate
@@ -28,6 +29,14 @@ class BookingRepositoryJpa(
     override fun occupancyByLessonDate(slotId: Long, fromDate: LocalDate): Map<LocalDate, Int> =
         jpa.countByLessonDate(slotId, fromDate, BookingStatus.OCCUPYING)
             .associate { it.lessonDate to it.occupancy.toInt() }
+
+    override fun occupancyInRange(slotIds: Collection<Long>, fromDate: LocalDate, toDate: LocalDate): Map<LessonKey, Int> =
+        if (slotIds.isEmpty()) {
+            emptyMap()
+        } else {
+            jpa.countInRange(slotIds, fromDate, toDate, BookingStatus.OCCUPYING)
+                .associate { LessonKey(it.slotId, it.lessonDate) to it.occupancy.toInt() }
+        }
 
     override fun occupancyOn(slotId: Long, lessonDate: LocalDate): Int =
         jpa.countOccupied(slotId, lessonDate, BookingStatus.OCCUPYING).toInt()

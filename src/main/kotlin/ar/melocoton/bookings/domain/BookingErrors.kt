@@ -44,3 +44,10 @@ class BookingStatusConflict : BusinessRuleViolation(
     message = "La reserva ya no está programada, así que no se puede cancelar.",
     kind = BusinessErrorKind.CONFLICT,
 )
+
+/** The date range of a lessons query is inverted or spans more than 3 months (DI-56). */
+class InvalidDateRange(message: String) : BusinessRuleViolation(
+    code = "invalid_date_range",
+    message = message,
+    kind = BusinessErrorKind.INVALID,
+)

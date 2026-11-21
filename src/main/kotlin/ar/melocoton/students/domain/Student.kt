@@ -109,6 +109,7 @@ class NewStudent private constructor(
          *
          * @param today the current date in the workshop zone
          * @throws InvalidStudent a text is blank, the name is longer than [PersonName.MAX_LENGTH], or a drop-in student comes with a start date
+         * @throws InvalidMonthlyStartDate a monthly student's start date is outside the range of DI-58
          */
         fun create(
             name: String,
@@ -122,7 +123,7 @@ class NewStudent private constructor(
             val trimmedEmail = requireText(email, "El email")
             val trimmedPhone = requireText(phone, "El teléfono")
             val startDate = when (enrollmentType) {
-                EnrollmentType.MONTHLY -> monthlyStartDate ?: today
+                EnrollmentType.MONTHLY -> (monthlyStartDate ?: today).also { requireValidMonthlyStartDate(it, today) }
                 EnrollmentType.DROP_IN -> {
                     if (monthlyStartDate != null) {
                         throw InvalidStudent("Un alumno de clase suelta no tiene fecha de ingreso mensual.")
