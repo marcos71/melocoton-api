@@ -163,9 +163,21 @@ class StudentEndpointTest(
 
     @Test
     fun `RF04_aMonthlyStudentKeepsTheStartDateItIsGiven`() {
-        create(lead, body(type = "MONTHLY", start = "2026-12-01")).andExpect {
+        val start = today.withDayOfMonth(1).toString()
+        create(lead, body(type = "MONTHLY", start = start)).andExpect {
             status { isCreated() }
-            jsonPath("$.monthlyStartDate") { value("2026-12-01") }
+            jsonPath("$.monthlyStartDate") { value(start) }
+        }
+    }
+
+    @Test
+    fun `DI58_aMonthlyStartDateOutsideTheAllowedRangeIsRejected`() {
+        listOf(today.withDayOfMonth(1).minusDays(1), today.plusMonths(1).plusDays(1)).forEach { start ->
+            create(lead, body(type = "MONTHLY", start = start.toString())).andExpect {
+                status { isBadRequest() }
+                jsonPath("$.error.code") { value("invalid_monthly_start_date") }
+                jsonPath("$.error.message") { isString() }
+            }
         }
     }
 

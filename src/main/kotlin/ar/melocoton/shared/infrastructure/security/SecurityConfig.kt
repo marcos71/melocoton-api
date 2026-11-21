@@ -54,6 +54,7 @@ class SecurityConfig {
                 authorize(PUBLIC_API, permitAll)
                 authorize("/api/v1/assistant-teachers/**", hasRole("LEAD_TEACHER"))
                 authorize("/api/v1/slots/**", hasRole("LEAD_TEACHER"))
+                authorize("/api/v1/lessons/**", hasRole("LEAD_TEACHER"))
                 // /me/** is the student's own routes and must come first. Everything else under students
                 // (the bare path included: ** also matches zero segments) is the lead teacher's, so a
                 // future subpath such as /{id}/fixed-slot is closed to other roles by default.

@@ -432,6 +432,97 @@
         "tags" : [ "Health" ]
       }
     },
+    "/api/v1/lessons" : {
+      "get" : {
+        "description" : "One lesson per date in the range that falls on the weekday of each active slot (or of slotId only; an inactive slot has none), sorted by date and start time. The range is inclusive and at most 3 months long.",
+        "operationId" : "listLessons",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "from",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "date"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "date"
+          }
+        }, {
+          "in" : "query",
+          "name" : "slotId",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/LessonResponse"
+                  }
+                }
+              }
+            },
+            "description" : "The lessons"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "validation_error: from or to is missing or malformed. invalid_date_range: from is after to, or to is more than 3 months after from"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "role_not_allowed: only the lead teacher"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "not_found: slotId is not a slot"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "too_many_requests: more than 60 requests in a minute from the same user"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "Lessons between two dates with their free capacity (DI-56, CU-04)",
+        "tags" : [ "Bookings" ]
+      }
+    },
     "/api/v1/slots" : {
       "get" : {
         "description" : "Each slot carries its future lessons with more occupied places than the capacity (DI-43).",
@@ -802,7 +893,7 @@
         "tags" : [ "Students" ]
       },
       "post" : {
-        "description" : "Name, email, phone and enrollment type are required. A MONTHLY student starts on monthlyStartDate, or today when it is not sent; a DROP_IN student must not send it. The email must not belong to any other account.",
+        "description" : "Name, email, phone and enrollment type are required. A MONTHLY student starts on monthlyStartDate, or today when it is not sent, between the first day of the current month and one month after today (DI-58); a DROP_IN student must not send it. The email must not belong to any other account.",
         "operationId" : "createStudent",
         "requestBody" : {
           "content" : {
@@ -833,7 +924,7 @@
                 }
               }
             },
-            "description" : "validation_error: a field is missing or blank, the name has more than 80 characters, the email is malformed, or a DROP_IN student sends a start date"
+            "description" : "validation_error: a field is missing or blank, the name has more than 80 characters, the email is malformed, or a DROP_IN student sends a start date. invalid_monthly_start_date: the start date is before the first day of the current month or more than one month ahead"
           },
           "403" : {
             "content" : {
@@ -1455,7 +1546,7 @@
           "monthlyStartDate" : {
             "type" : [ "string", "null" ],
             "format" : "date",
-            "description" : "Only for MONTHLY, where it defaults to today; DROP_IN must not send it",
+            "description" : "Only for MONTHLY, where it defaults to today; DROP_IN must not send it. From the first day of the current month to one month after today (DI-58)",
             "example" : "2026-11-02"
           },
           "name" : {
@@ -1563,6 +1654,59 @@
           }
         },
         "required" : [ "lessonDate", "occupancy", "spotsToFree" ]
+      },
+      "LessonResponse" : {
+        "type" : "object",
+        "properties" : {
+          "capacity" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "The slot's maximum capacity"
+          },
+          "dayOfWeek" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "ISO day of the week: 1 is Monday, 7 is Sunday"
+          },
+          "endTime" : {
+            "type" : "string",
+            "description" : "HH:mm",
+            "example" : "20:00"
+          },
+          "freeSpots" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Places left, never negative"
+          },
+          "lessonDate" : {
+            "type" : "string",
+            "format" : "date",
+            "example" : "2026-12-03"
+          },
+          "occupancy" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Occupied places: scheduled and present bookings of any type (RN-02)"
+          },
+          "overbooked" : {
+            "type" : "boolean",
+            "description" : "More places occupied than the capacity (DI-43)"
+          },
+          "slotId" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "startTime" : {
+            "type" : "string",
+            "description" : "HH:mm",
+            "example" : "18:00"
+          },
+          "started" : {
+            "type" : "boolean",
+            "description" : "The lesson has already started (workshop time zone)"
+          }
+        },
+        "required" : [ "capacity", "dayOfWeek", "endTime", "freeSpots", "lessonDate", "occupancy", "overbooked", "slotId", "startTime", "started" ]
       },
       "LoginRequest" : {
         "type" : "object",

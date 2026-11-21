@@ -2,6 +2,8 @@ package ar.melocoton.students.domain
 
 import ar.melocoton.shared.domain.BusinessErrorKind
 import ar.melocoton.shared.domain.BusinessRuleViolation
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 /** The student data is not valid: a required text is blank, or the modality and the start date do not fit. */
 class InvalidStudent(message: String) : BusinessRuleViolation(
@@ -30,3 +32,26 @@ class StudentInactive : BusinessRuleViolation(
     message = "El alumno está inactivo.",
     kind = BusinessErrorKind.CONFLICT,
 )
+
+/** The monthly start date is before the first day of the current month or more than one month ahead (DI-58). */
+class InvalidMonthlyStartDate(earliest: LocalDate, latest: LocalDate) : BusinessRuleViolation(
+    code = "invalid_monthly_start_date",
+    message = "La fecha de ingreso tiene que estar entre el ${earliest.format(DATE_FORMAT)} y el ${latest.format(DATE_FORMAT)}.",
+    kind = BusinessErrorKind.INVALID,
+)
+
+private val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("d/M/yyyy")
+
+/**
+ * A monthly student starts between the first day of [today]'s month and one month after [today], both
+ * inclusive (DI-58): the app starts without history, so an older date would only create debts that do not exist (RN-12).
+ *
+ * @throws InvalidMonthlyStartDate the date is outside that range
+ */
+fun requireValidMonthlyStartDate(monthlyStartDate: LocalDate, today: LocalDate) {
+    val earliest = today.withDayOfMonth(1)
+    val latest = today.plusMonths(1)
+    if (monthlyStartDate.isBefore(earliest) || monthlyStartDate.isAfter(latest)) {
+        throw InvalidMonthlyStartDate(earliest, latest)
+    }
+}

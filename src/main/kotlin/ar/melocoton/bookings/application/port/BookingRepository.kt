@@ -3,6 +3,7 @@ package ar.melocoton.bookings.application.port
 import ar.melocoton.bookings.domain.Booking
 import ar.melocoton.bookings.domain.CancellationReason
 import ar.melocoton.bookings.domain.ExistingBooking
+import ar.melocoton.bookings.domain.LessonKey
 import java.time.LocalDate
 
 /** Output port for bookings. */
@@ -13,6 +14,12 @@ interface BookingRepository {
      * Dates with no occupying booking are absent from the map.
      */
     fun occupancyByLessonDate(slotId: Long, fromDate: LocalDate): Map<LocalDate, Int>
+
+    /**
+     * Occupied capacity (RN-02) of every lesson of the given slots between [fromDate] and [toDate] inclusive,
+     * in one query. Lessons with no occupying booking are absent from the map.
+     */
+    fun occupancyInRange(slotIds: Collection<Long>, fromDate: LocalDate, toDate: LocalDate): Map<LessonKey, Int>
 
     /** Occupied capacity (RN-02) of one lesson. Read it holding the slot lock (D-43). */
     fun occupancyOn(slotId: Long, lessonDate: LocalDate): Int

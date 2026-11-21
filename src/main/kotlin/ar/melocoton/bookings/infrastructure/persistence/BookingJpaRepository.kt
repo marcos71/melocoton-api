@@ -19,6 +19,18 @@ interface BookingJpaRepository : JpaRepository<BookingEntity, Long> {
     fun countByLessonDate(slotId: Long, fromDate: LocalDate, statuses: Collection<BookingStatus>): List<OccupancyRow>
 
     @Query(
+        "SELECT b.slotId AS slotId, b.lessonDate AS lessonDate, count(b) AS occupancy FROM BookingEntity b " +
+            "WHERE b.slotId IN :slotIds AND b.lessonDate BETWEEN :fromDate AND :toDate AND b.status IN :statuses " +
+            "GROUP BY b.slotId, b.lessonDate",
+    )
+    fun countInRange(
+        slotIds: Collection<Long>,
+        fromDate: LocalDate,
+        toDate: LocalDate,
+        statuses: Collection<BookingStatus>,
+    ): List<SlotOccupancyRow>
+
+    @Query(
         "SELECT count(b) FROM BookingEntity b " +
             "WHERE b.slotId = :slotId AND b.lessonDate = :lessonDate AND b.status IN :statuses",
     )
@@ -45,6 +57,13 @@ interface BookingJpaRepository : JpaRepository<BookingEntity, Long> {
 
 /** One row of the grouped occupancy query. */
 interface OccupancyRow {
+    val lessonDate: LocalDate
+    val occupancy: Long
+}
+
+/** One row of the occupancy query over several slots. */
+interface SlotOccupancyRow {
+    val slotId: Long
     val lessonDate: LocalDate
     val occupancy: Long
 }

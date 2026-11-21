@@ -35,6 +35,33 @@ class StudentTest {
     }
 
     @Test
+    fun `DI58_theMonthlyStartDateMayBeTheFirstDayOfTheCurrentMonthOrOneMonthAfterToday`() {
+        assertThat(new(start = LocalDate.of(2026, 11, 1)).monthlyStartDate).isEqualTo(LocalDate.of(2026, 11, 1))
+        assertThat(new(start = LocalDate.of(2026, 12, 19)).monthlyStartDate).isEqualTo(LocalDate.of(2026, 12, 19))
+    }
+
+    @Test
+    fun `DI58_aMonthlyStartDateBeforeTheCurrentMonthOrAfterOneMonthFromTodayIsInvalid`() {
+        listOf(LocalDate.of(2026, 10, 31), LocalDate.of(2026, 12, 20)).forEach { start ->
+            assertThatThrownBy { new(start = start) }.isInstanceOfSatisfying(InvalidMonthlyStartDate::class.java) {
+                assertThat(it.code).isEqualTo("invalid_monthly_start_date")
+                assertThat(it.kind).isEqualTo(BusinessErrorKind.INVALID)
+                assertThat(it.message).isEqualTo("La fecha de ingreso tiene que estar entre el 1/11/2026 y el 19/12/2026.")
+            }
+        }
+    }
+
+    @Test
+    fun `DI58_oneMonthAfterTheEndOfAShortMonthIsClampedToItsLastDay`() {
+        val jan31 = LocalDate.of(2027, 1, 31)
+
+        assertThat(NewStudent.create("Lucía", "l@test.local", "1", EnrollmentType.MONTHLY, LocalDate.of(2027, 2, 28), jan31).monthlyStartDate)
+            .isEqualTo(LocalDate.of(2027, 2, 28))
+        assertThatThrownBy { NewStudent.create("Lucía", "l@test.local", "1", EnrollmentType.MONTHLY, LocalDate.of(2027, 3, 1), jan31) }
+            .isInstanceOf(InvalidMonthlyStartDate::class.java)
+    }
+
+    @Test
     fun `RF05_aDropInStudentHasNoStartDate`() {
         assertThat(new(type = EnrollmentType.DROP_IN).monthlyStartDate).isNull()
     }

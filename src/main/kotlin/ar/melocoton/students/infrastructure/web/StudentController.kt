@@ -46,14 +46,16 @@ class StudentController(
         operationId = "createStudent",
         summary = "Register a student; they get an email to define their password (CU-02, RF-04, RF-05, DI-46)",
         description = "Name, email, phone and enrollment type are required. A MONTHLY student starts on " +
-            "monthlyStartDate, or today when it is not sent; a DROP_IN student must not send it. " +
+            "monthlyStartDate, or today when it is not sent, between the first day of the current month and one " +
+            "month after today (DI-58); a DROP_IN student must not send it. " +
             "The email must not belong to any other account.",
     )
     @ApiResponses(
         ApiResponse(responseCode = "201", description = "The student, created and invited"),
         ApiResponse(
             responseCode = "400",
-            description = "validation_error: a field is missing or blank, the name has more than 80 characters, the email is malformed, or a DROP_IN student sends a start date",
+            description = "validation_error: a field is missing or blank, the name has more than 80 characters, the email is malformed, or a DROP_IN student sends a start date. " +
+                "invalid_monthly_start_date: the start date is before the first day of the current month or more than one month ahead",
             content = [Content(schema = Schema(implementation = ErrorResponse::class))],
         ),
         ApiResponse(
