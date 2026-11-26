@@ -73,10 +73,26 @@ class SchemaFixtures(private val jdbc: JdbcTemplate) {
         studentId, status, studentId, originalBookingId, slotId,
     )
 
-    fun piece(studentId: Long): Long = id(
-        "INSERT INTO piece (student_id, name, status, created_at) VALUES (?, 'Bowl', 'IN_PROGRESS', now()) RETURNING id",
-        studentId,
-    )
+    /** The default name is unique, so tests do not hit the repeated-name rule (DI-26). */
+    fun piece(
+        studentId: Long,
+        status: String = "IN_PROGRESS",
+        name: String = "Bowl ${UUID.randomUUID()}",
+        withCreationEvent: Boolean = false,
+    ): Long {
+        val pieceId = id(
+            "INSERT INTO piece (student_id, name, status, created_at) VALUES (?, ?, ?, now()) RETURNING id",
+            studentId, name, status,
+        )
+        if (withCreationEvent) {
+            jdbc.update(
+                """INSERT INTO piece_status_history (piece_id, new_status, event_type, occurred_at, user_id, operation_id)
+                   VALUES (?, 'IN_PROGRESS', 'CREATED', now(), ?, gen_random_uuid())""",
+                pieceId, studentId,
+            )
+        }
+        return pieceId
+    }
 
     fun monthlyPayment(studentId: Long, recordedBy: Long): Long = id(
         """INSERT INTO payment (student_id, concept, period, amount, paid_on, method, recorded_by, recorded_at)
