@@ -18,6 +18,9 @@ data class StudentSummary(
     val active: Boolean,
 )
 
+/** A row of the students directory: what the assistant teacher may read of a student (RF-62, D-29, DI-76). */
+data class StudentDirectoryEntry(val id: Long, val name: String, val phone: String, val active: Boolean)
+
 /** A student's profile data (CU-02, DI-46). Upcoming classes and payment standing come with their iterations. */
 data class StudentProfile(
     val id: Long,

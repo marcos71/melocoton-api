@@ -3,6 +3,7 @@ package ar.melocoton.students.infrastructure.web
 import ar.melocoton.shared.infrastructure.web.ErrorResponse
 import ar.melocoton.students.application.CreateStudent
 import ar.melocoton.students.application.GetStudent
+import ar.melocoton.students.application.ListStudentDirectory
 import ar.melocoton.students.application.ListStudents
 import ar.melocoton.students.application.UpdateStudent
 import ar.melocoton.students.domain.EnrollmentType
@@ -36,6 +37,7 @@ import org.springframework.web.bind.annotation.RestController
 class StudentController(
     private val createStudent: CreateStudent,
     private val listStudents: ListStudents,
+    private val listStudentDirectory: ListStudentDirectory,
     private val getStudent: GetStudent,
     private val updateStudent: UpdateStudent,
 ) {
@@ -99,6 +101,29 @@ class StudentController(
         @RequestParam(required = false) slotId: Long?,
     ): List<StudentItemResponse> =
         listStudents.list(StudentFilter(status, enrollmentType, slotId)).map { it.toResponse() }
+
+    @GetMapping("/directory")
+    @Operation(
+        operationId = "listStudentDirectory",
+        summary = "The students' name and phone, for the lead and the assistant teacher (RF-24, RF-62, D-29, DI-76)",
+        description = "Only id, name, phone and active. status defaults to ACTIVE; ALL includes inactive students.",
+    )
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "The students, ordered by name"),
+        ApiResponse(
+            responseCode = "400",
+            description = "validation_error: status has an invalid value",
+            content = [Content(schema = Schema(implementation = ErrorResponse::class))],
+        ),
+        ApiResponse(
+            responseCode = "403",
+            description = "role_not_allowed: only the lead and the assistant teacher",
+            content = [Content(schema = Schema(implementation = ErrorResponse::class))],
+        ),
+    )
+    fun directory(
+        @RequestParam(defaultValue = "ACTIVE") status: StudentStatusFilter,
+    ): List<StudentDirectoryEntryResponse> = listStudentDirectory.list(status).map { it.toResponse() }
 
     @GetMapping("/{id}")
     @Operation(operationId = "getStudent", summary = "A student's profile (CU-02, DI-46)")
