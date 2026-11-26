@@ -19,7 +19,8 @@ class UpdateSlot(
 ) {
     @Transactional
     fun update(id: Long, change: SlotChange): SlotOverview {
-        // Schedule lock first (DI-25: two concurrent moves cannot both pass the overlap check), then the slot row.
+        // Schedule lock first (DI-25: two concurrent moves cannot both pass the overlap check), then the slot row:
+        // every booking use case inserts holding it, so existsForSlot cannot miss a first booking being created (DI-45, D-43).
         slots.lockSchedule()
         val slot = slots.lockById(id) ?: throw SlotNotFound()
         val active = slots.findActive()

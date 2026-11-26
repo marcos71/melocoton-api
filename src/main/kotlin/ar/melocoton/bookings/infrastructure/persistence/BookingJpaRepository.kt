@@ -20,6 +20,17 @@ interface BookingJpaRepository : JpaRepository<BookingEntity, Long> {
 
     @Query(
         "SELECT b.slotId AS slotId, b.lessonDate AS lessonDate, count(b) AS occupancy FROM BookingEntity b " +
+            "WHERE b.slotId IN :slotIds AND b.lessonDate >= :fromDate AND b.status IN :statuses " +
+            "GROUP BY b.slotId, b.lessonDate",
+    )
+    fun countByLessonDateForSlots(
+        slotIds: Collection<Long>,
+        fromDate: LocalDate,
+        statuses: Collection<BookingStatus>,
+    ): List<SlotOccupancyRow>
+
+    @Query(
+        "SELECT b.slotId AS slotId, b.lessonDate AS lessonDate, count(b) AS occupancy FROM BookingEntity b " +
             "WHERE b.slotId IN :slotIds AND b.lessonDate BETWEEN :fromDate AND :toDate AND b.status IN :statuses " +
             "GROUP BY b.slotId, b.lessonDate",
     )

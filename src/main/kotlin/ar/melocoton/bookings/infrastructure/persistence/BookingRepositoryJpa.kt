@@ -30,6 +30,15 @@ class BookingRepositoryJpa(
         jpa.countByLessonDate(slotId, fromDate, BookingStatus.OCCUPYING)
             .associate { it.lessonDate to it.occupancy.toInt() }
 
+    override fun occupancyByLessonDate(slotIds: Collection<Long>, fromDate: LocalDate): Map<Long, Map<LocalDate, Int>> =
+        if (slotIds.isEmpty()) {
+            emptyMap()
+        } else {
+            jpa.countByLessonDateForSlots(slotIds, fromDate, BookingStatus.OCCUPYING)
+                .groupBy({ it.slotId }, { it.lessonDate to it.occupancy.toInt() })
+                .mapValues { (_, lessons) -> lessons.toMap() }
+        }
+
     override fun occupancyInRange(slotIds: Collection<Long>, fromDate: LocalDate, toDate: LocalDate): Map<LessonKey, Int> =
         if (slotIds.isEmpty()) {
             emptyMap()

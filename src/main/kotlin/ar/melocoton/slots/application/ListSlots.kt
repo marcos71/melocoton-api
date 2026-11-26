@@ -20,13 +20,14 @@ class ListSlots(
     fun list(status: SlotStatusFilter): List<SlotOverview> {
         val now = clock.workshopNow()
         val all = slots.findAll(status)
-        val withBookings = bookings.slotIdsWithBookings(all.map { it.id })
-        val fixedStudents = students.countFixedStudentsBySlot(all.map { it.id })
+        val ids = all.map { it.id }
+        val withBookings = bookings.slotIdsWithBookings(ids)
+        val fixedStudents = students.countFixedStudentsBySlot(ids)
+        val occupancy = bookings.occupancyByLessonDate(ids, now.toLocalDate())
         return all.map { slot ->
-            val occupancy = bookings.occupancyByLessonDate(slot.id, now.toLocalDate())
             SlotOverview(
                 slot,
-                slot.overbookedLessons(occupancy, now),
+                slot.overbookedLessons(occupancy[slot.id] ?: emptyMap(), now),
                 slot.scheduleEditable(slot.id in withBookings),
                 fixedStudents[slot.id] ?: 0,
             )

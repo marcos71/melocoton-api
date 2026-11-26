@@ -64,7 +64,7 @@ class BookingUseCasesTest {
         every { students.saveFixedSlot(any()) } just runs
         every { students.countFixedStudents(any(), any()) } returns 0
         every { bookings.existingStudentBookings(any(), any(), any(), any()) } returns emptyList()
-        every { bookings.occupancyByLessonDate(any(), any()) } returns emptyMap()
+        every { bookings.occupancyByLessonDate(any<Long>(), any()) } returns emptyMap()
         val useCase = AssignFixedSlot(students, slots, bookings, settings, clock)
 
         useCase.assign(1, 4)
@@ -90,7 +90,7 @@ class BookingUseCasesTest {
         every { students.saveFixedSlot(any()) } just runs
         every { students.countFixedStudents(any(), any()) } returns 0
         every { bookings.existingStudentBookings(any(), any(), any(), any()) } returns emptyList()
-        every { bookings.occupancyByLessonDate(any(), any()) } returns emptyMap()
+        every { bookings.occupancyByLessonDate(any<Long>(), any()) } returns emptyMap()
 
         AssignFixedSlot(students, slots, bookings, settings, clock).assign(1, 4)
 
@@ -120,7 +120,7 @@ class BookingUseCasesTest {
         every { students.countFixedStudents(4, excluding = 1) } returns 11
         every { students.saveFixedSlot(any()) } just runs
         every { bookings.existingStudentBookings(any(), any(), any(), any()) } returns emptyList()
-        every { bookings.occupancyByLessonDate(any(), any()) } returns emptyMap()
+        every { bookings.occupancyByLessonDate(any<Long>(), any()) } returns emptyMap()
 
         AssignFixedSlot(students, slots, bookings, settings, clock).assign(1, 4)
 

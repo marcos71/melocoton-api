@@ -365,6 +365,23 @@ class SlotEndpointTest(
         assertThat(item["upcomingOverbookedLessons"].size()).isEqualTo(1)
     }
 
+    @Test
+    fun `DI43_theListReportsTheOverbookedLessonsOfEachSlotSeparately`() {
+        val overbooked = createdId(lead, body(day = 2))
+        val atCapacity = createdId(lead, body(day = 3))
+        val date = today.plusDays(10)
+        bookings(overbooked, date, "SCHEDULED", 13)
+        bookings(atCapacity, date, "SCHEDULED", 12)
+        // A cancelled booking does not occupy a place, so it cannot push the slot over capacity.
+        bookings(atCapacity, date, "CANCELLED", 1)
+
+        val items = json.readTree(list(lead).andReturn().response.contentAsString)
+        val overbookedByItem = items.associate { it["id"].asLong() to it["upcomingOverbookedLessons"] }
+        assertThat(overbookedByItem[overbooked]!!.size()).isEqualTo(1)
+        assertThat(overbookedByItem[overbooked]!![0]["occupancy"].asInt()).isEqualTo(13)
+        assertThat(overbookedByItem[atCapacity]!!.size()).isEqualTo(0)
+    }
+
     // ---- patch ----
 
     @Test

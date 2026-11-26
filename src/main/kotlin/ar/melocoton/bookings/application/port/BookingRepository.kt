@@ -15,6 +15,9 @@ interface BookingRepository {
      */
     fun occupancyByLessonDate(slotId: Long, fromDate: LocalDate): Map<LocalDate, Int>
 
+    /** [occupancyByLessonDate] of each slot in one query. Slots with no occupying booking are absent from the map. */
+    fun occupancyByLessonDate(slotIds: Collection<Long>, fromDate: LocalDate): Map<Long, Map<LocalDate, Int>>
+
     /**
      * Occupied capacity (RN-02) of every lesson of the given slots between [fromDate] and [toDate] inclusive,
      * in one query. Lessons with no occupying booking are absent from the map.

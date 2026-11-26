@@ -82,8 +82,9 @@ class SlotUseCasesTest {
         val full = aSlot(id = 1)
         val empty = aSlot(id = 2)
         every { slots.findAll(SlotStatusFilter.ALL) } returns listOf(full, empty)
-        every { bookings.occupancyByLessonDate(1, today) } returns mapOf(today.plusDays(1) to 13, today.plusDays(8) to 12)
-        every { bookings.occupancyByLessonDate(2, today) } returns emptyMap()
+        // Slot 2 has no occupying booking, so it is absent from the map.
+        every { bookings.occupancyByLessonDate(listOf(1L, 2L), today) } returns
+            mapOf(1L to mapOf(today.plusDays(1) to 13, today.plusDays(8) to 12))
         every { bookings.slotIdsWithBookings(listOf(1L, 2L)) } returns setOf(1L)
         every { students.countFixedStudentsBySlot(listOf(1L, 2L)) } returns mapOf(1L to 2)
 
@@ -95,6 +96,8 @@ class SlotUseCasesTest {
         // DI-63: one query for all the slots, not one per slot.
         assertThat(result.map { it.scheduleEditable }).containsExactly(false, true)
         verify(exactly = 1) { bookings.slotIdsWithBookings(any()) }
+        verify(exactly = 1) { bookings.occupancyByLessonDate(listOf(1L, 2L), today) }
+        verify(exactly = 0) { bookings.occupancyByLessonDate(any<Long>(), any()) }
         // DI-66: the fixed students of every slot in one query; a slot without any is 0.
         assertThat(result.map { it.fixedStudents }).containsExactly(2, 0)
         verify(exactly = 1) { students.countFixedStudentsBySlot(any()) }
