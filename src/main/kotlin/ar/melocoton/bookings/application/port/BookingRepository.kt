@@ -15,6 +15,9 @@ interface BookingRepository {
      */
     fun occupancyByLessonDate(slotId: Long, fromDate: LocalDate): Map<LocalDate, Int>
 
+    /** [occupancyByLessonDate] of each slot in one query. Slots with no occupying booking are absent from the map. */
+    fun occupancyByLessonDate(slotIds: Collection<Long>, fromDate: LocalDate): Map<Long, Map<LocalDate, Int>>
+
     /**
      * Occupied capacity (RN-02) of every lesson of the given slots between [fromDate] and [toDate] inclusive,
      * in one query. Lessons with no occupying booking are absent from the map.
@@ -26,6 +29,9 @@ interface BookingRepository {
 
     /** True when the slot has any booking, in any state and of any date. */
     fun existsForSlot(slotId: Long): Boolean
+
+    /** Of the given slots, the ids of those with any booking, in any state and of any date, in one query (DI-63). */
+    fun slotIdsWithBookings(slotIds: Collection<Long>): Set<Long>
 
     /** The student's bookings in the slot, in any state, with lesson dates from [fromDate] to [toDate] inclusive. */
     fun existingStudentBookings(studentId: Long, slotId: Long, fromDate: LocalDate, toDate: LocalDate): List<ExistingBooking>

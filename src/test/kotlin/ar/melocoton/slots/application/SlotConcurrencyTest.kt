@@ -30,7 +30,7 @@ class SlotConcurrencyTest(
             val outcomes = listOf("18:00" to "20:00", "19:00" to "21:00").map { (start, end) ->
                 pool.submit<Result<Long>> {
                     barrier.await()
-                    runCatching { createSlot.create(7, LocalTime.parse(start), LocalTime.parse(end), 8).id }
+                    runCatching { createSlot.create(7, LocalTime.parse(start), LocalTime.parse(end)).id }
                 }
             }.map { it.get(30, TimeUnit.SECONDS) }
             pool.shutdown()

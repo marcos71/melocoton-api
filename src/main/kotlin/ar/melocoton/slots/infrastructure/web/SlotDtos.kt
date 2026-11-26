@@ -10,8 +10,8 @@ import java.time.LocalTime
 private const val TIME_EXAMPLE = "18:00"
 
 /**
- * Body of POST /api/v1/slots. Every field is required (CU-03). The domain checks the ranges, so
- * a day out of 1 to 7, a start that is not before the end, or a capacity of zero are 400 validation_error.
+ * Body of POST /api/v1/slots. Every field is required (CU-03). The domain checks the ranges, so a day out
+ * of 1 to 7 or a start that is not before the end are 400 validation_error. There is no capacity: every slot holds 12 (DI-64).
  */
 class CreateSlotRequest(
     @field:Schema(description = "ISO day of the week: 1 is Monday, 7 is Sunday", minimum = "1", maximum = "7")
@@ -20,8 +20,6 @@ class CreateSlotRequest(
     val startTime: LocalTime,
     @field:Schema(type = "string", example = TIME_EXAMPLE, description = "HH:mm")
     val endTime: LocalTime,
-    @field:Schema(minimum = "1")
-    val capacity: Int,
 )
 
 /** Body of PATCH /api/v1/slots/{id}. At least one field; day and time only while the slot has no bookings (DI-45). */
@@ -32,11 +30,9 @@ class UpdateSlotRequest(
     val startTime: LocalTime? = null,
     @field:Schema(type = "string", example = TIME_EXAMPLE, description = "HH:mm")
     val endTime: LocalTime? = null,
-    @field:Schema(minimum = "1")
-    val capacity: Int? = null,
 )
 
-/** A slot: a weekly time range with a capacity. */
+/** A slot: a weekly time range with its capacity, the same for every slot (DI-64). */
 data class SlotResponse(
     val id: Long,
     @field:Schema(description = "ISO day of the week: 1 is Monday, 7 is Sunday")
@@ -62,6 +58,16 @@ data class SlotItemResponse(
     val active: Boolean,
     @field:Schema(description = "Lessons not started yet whose occupancy is above the capacity, by date")
     val upcomingOverbookedLessons: List<OverbookedLessonResponse>,
+    @field:Schema(
+        description = "Whether day and time can still be changed: the slot is active and never had a booking (DI-45, DI-63)",
+        requiredMode = Schema.RequiredMode.REQUIRED,
+    )
+    val scheduleEditable: Boolean,
+    @field:Schema(
+        description = "Active students whose fixed slot is this one; never above the capacity when assigned (DI-66)",
+        requiredMode = Schema.RequiredMode.REQUIRED,
+    )
+    val fixedStudents: Int,
 )
 
 /** A lesson over capacity: its date and how many places are occupied. */
@@ -72,7 +78,7 @@ fun Slot.toResponse() = SlotResponse(
     dayOfWeek = dayOfWeek.value,
     startTime = startTime,
     endTime = endTime,
-    capacity = capacity,
+    capacity = Slot.CAPACITY,
     active = active,
 )
 
@@ -83,7 +89,9 @@ fun SlotOverview.toResponse() = SlotItemResponse(
     dayOfWeek = slot.dayOfWeek.value,
     startTime = slot.startTime,
     endTime = slot.endTime,
-    capacity = slot.capacity,
+    capacity = Slot.CAPACITY,
     active = slot.active,
     upcomingOverbookedLessons = overbookedLessons.map { it.toResponse() },
+    scheduleEditable = scheduleEditable,
+    fixedStudents = fixedStudents,
 )

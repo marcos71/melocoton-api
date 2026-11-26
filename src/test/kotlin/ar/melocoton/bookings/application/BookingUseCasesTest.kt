@@ -46,8 +46,8 @@ class BookingUseCasesTest {
     private val bookings = mockk<BookingRepository>(relaxed = true)
     private val settings = mockk<SettingsRepository> { every { get() } returns Settings(makeupHorizonDays = 60) }
 
-    private fun slot(id: Long, capacity: Int = 8, active: Boolean = true) =
-        Slot(id, DayOfWeek.TUESDAY, LocalTime.of(18, 0), LocalTime.of(20, 0), capacity, active)
+    private fun slot(id: Long, active: Boolean = true) =
+        Slot(id, DayOfWeek.TUESDAY, LocalTime.of(18, 0), LocalTime.of(20, 0), active)
 
     private fun monthly(id: Long, slotId: Long? = null) =
         Student(id, EnrollmentType.MONTHLY, slotId, LocalDate.of(2026, 3, 1))
@@ -62,8 +62,9 @@ class BookingUseCasesTest {
         every { slots.lockById(9) } returns slot(9)
         every { slots.lockById(4) } returns slot(4)
         every { students.saveFixedSlot(any()) } just runs
+        every { students.countFixedStudents(any(), any()) } returns 0
         every { bookings.existingStudentBookings(any(), any(), any(), any()) } returns emptyList()
-        every { bookings.occupancyByLessonDate(any(), any()) } returns emptyMap()
+        every { bookings.occupancyByLessonDate(any<Long>(), any()) } returns emptyMap()
         val useCase = AssignFixedSlot(students, slots, bookings, settings, clock)
 
         useCase.assign(1, 4)
@@ -87,13 +88,43 @@ class BookingUseCasesTest {
         every { students.lockById(1) } returns monthly(1, slotId = 4)
         every { slots.lockById(4) } returns slot(4)
         every { students.saveFixedSlot(any()) } just runs
+        every { students.countFixedStudents(any(), any()) } returns 0
         every { bookings.existingStudentBookings(any(), any(), any(), any()) } returns emptyList()
-        every { bookings.occupancyByLessonDate(any(), any()) } returns emptyMap()
+        every { bookings.occupancyByLessonDate(any<Long>(), any()) } returns emptyMap()
 
         AssignFixedSlot(students, slots, bookings, settings, clock).assign(1, 4)
 
         verify(exactly = 0) { bookings.cancelScheduledFixed(any(), any(), any(), any()) }
         verify(exactly = 1) { slots.lockById(4) }
+    }
+
+    @Test
+    fun `DI66_aFullSlotRejectsTheAssignmentAndChangesNothing`() {
+        every { students.lockById(1) } returns monthly(1, slotId = 9)
+        every { slots.lockById(9) } returns slot(9)
+        every { slots.lockById(4) } returns slot(4)
+        every { students.countFixedStudents(4, excluding = 1) } returns 12
+
+        assertThatThrownBy { AssignFixedSlot(students, slots, bookings, settings, clock).assign(1, 4) }
+            .isInstanceOf(ar.melocoton.slots.domain.FixedStudentsFull::class.java)
+
+        verify(exactly = 0) { students.saveFixedSlot(any()) }
+        verify(exactly = 0) { bookings.cancelScheduledFixed(any(), any(), any(), any()) }
+        verify(exactly = 0) { bookings.insertFixedIfAbsent(any(), any(), any()) }
+    }
+
+    @Test
+    fun `DI66_theCountIsReadAfterTheSlotLockAndLeavesOutTheStudentBeingAssigned`() {
+        every { students.lockById(1) } returns monthly(1, slotId = 4)
+        every { slots.lockById(4) } returns slot(4)
+        every { students.countFixedStudents(4, excluding = 1) } returns 11
+        every { students.saveFixedSlot(any()) } just runs
+        every { bookings.existingStudentBookings(any(), any(), any(), any()) } returns emptyList()
+        every { bookings.occupancyByLessonDate(any<Long>(), any()) } returns emptyMap()
+
+        AssignFixedSlot(students, slots, bookings, settings, clock).assign(1, 4)
+
+        verifyOrder { slots.lockById(4); students.countFixedStudents(4, excluding = 1) }
     }
 
     @Test
@@ -163,9 +194,9 @@ class BookingUseCasesTest {
     @Test
     fun `RF11_aFullLessonSavesNothing`() {
         every { students.lockById(1) } returns dropIn(1)
-        every { slots.lockById(4) } returns slot(4, capacity = 8)
+        every { slots.lockById(4) } returns slot(4)
         every { bookings.existingStudentBookings(any(), any(), any(), any()) } returns emptyList()
-        every { bookings.occupancyOn(4, LocalDate.of(2026, 12, 1)) } returns 8
+        every { bookings.occupancyOn(4, LocalDate.of(2026, 12, 1)) } returns 12
 
         assertThatThrownBy { BookDropInClass(students, slots, bookings, clock).book(1, 4, LocalDate.of(2026, 12, 1)) }
             .isInstanceOf(CapacityFull::class.java)
@@ -182,9 +213,9 @@ class BookingUseCasesTest {
     fun `RF09_aFreeLessonIsBooked`() {
         val created = Booking(7, 1, 4, LocalDate.of(2026, 12, 1), BookingType.DROP_IN, BookingStatus.SCHEDULED, null)
         every { students.lockById(1) } returns dropIn(1)
-        every { slots.lockById(4) } returns slot(4, capacity = 8)
+        every { slots.lockById(4) } returns slot(4)
         every { bookings.existingStudentBookings(any(), any(), any(), any()) } returns emptyList()
-        every { bookings.occupancyOn(4, LocalDate.of(2026, 12, 1)) } returns 7
+        every { bookings.occupancyOn(4, LocalDate.of(2026, 12, 1)) } returns 11
         every { bookings.createDropIn(1, 4, LocalDate.of(2026, 12, 1)) } returns created
 
         val result = BookDropInClass(students, slots, bookings, clock).book(1, 4, LocalDate.of(2026, 12, 1))

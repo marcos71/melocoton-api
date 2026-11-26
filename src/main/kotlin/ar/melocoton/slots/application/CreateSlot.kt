@@ -12,10 +12,10 @@ import java.time.LocalTime
 class CreateSlot(private val slots: SlotRepository) {
 
     @Transactional
-    fun create(dayOfWeek: Int, startTime: LocalTime, endTime: LocalTime, capacity: Int): Slot {
+    fun create(dayOfWeek: Int, startTime: LocalTime, endTime: LocalTime): Slot {
         // Held until commit: a concurrent create waits here and then reads this slot as active (DI-25).
         slots.lockSchedule()
         val active = slots.findActive()
-        return slots.create(NewSlot.create(dayOfWeek, startTime, endTime, capacity, active))
+        return slots.create(NewSlot.create(dayOfWeek, startTime, endTime, active))
     }
 }

@@ -49,10 +49,10 @@ class LessonEndpointTest(
 
     private val lead get() = tokenFor(Role.LEAD_TEACHER)
 
-    private fun slot(day: Int = 2, start: String = "18:00", end: String = "20:00", capacity: Int = 2, active: Boolean = true): Long =
+    private fun slot(day: Int = 2, start: String = "18:00", end: String = "20:00", active: Boolean = true): Long =
         jdbc.queryForObject(
-            "INSERT INTO slot (day_of_week, start_time, end_time, capacity, active) VALUES (?, ?::time, ?::time, ?, ?) RETURNING id",
-            Long::class.java, day, start, end, capacity, active,
+            "INSERT INTO slot (day_of_week, start_time, end_time, active) VALUES (?, ?::time, ?::time, ?) RETURNING id",
+            Long::class.java, day, start, end, active,
         )!!
 
     private fun student(): Long {
@@ -83,11 +83,10 @@ class LessonEndpointTest(
 
     @Test
     fun `DI56_lessonsCarryOccupancyFreeSpotsAndTheStartedFlagAndACancelledBookingDoesNotCount`() {
-        val slotId = slot(capacity = 2)
+        val slotId = slot()
         book(slotId, "2026-11-24")
         book(slotId, "2026-11-24", status = "CANCELLED")
-        book(slotId, "2026-12-01")
-        book(slotId, "2026-12-01")
+        repeat(12) { book(slotId, "2026-12-01") }
 
         val result = lessons(lead, "from=2026-11-17&to=2026-12-01&slotId=$slotId").andExpect {
             status { isOk() }
@@ -95,18 +94,18 @@ class LessonEndpointTest(
             jsonPath("$[0].lessonDate") { value("2026-11-17") }
             jsonPath("$[0].started") { value(true) }
             jsonPath("$[0].occupancy") { value(0) }
-            jsonPath("$[0].freeSpots") { value(2) }
+            jsonPath("$[0].freeSpots") { value(12) }
             jsonPath("$[1].lessonDate") { value("2026-11-24") }
             jsonPath("$[1].slotId") { value(slotId) }
             jsonPath("$[1].dayOfWeek") { value(2) }
             jsonPath("$[1].startTime") { value("18:00") }
             jsonPath("$[1].endTime") { value("20:00") }
-            jsonPath("$[1].capacity") { value(2) }
+            jsonPath("$[1].capacity") { value(12) }
             jsonPath("$[1].occupancy") { value(1) }
-            jsonPath("$[1].freeSpots") { value(1) }
+            jsonPath("$[1].freeSpots") { value(11) }
             jsonPath("$[1].overbooked") { value(false) }
             jsonPath("$[1].started") { value(false) }
-            jsonPath("$[2].occupancy") { value(2) }
+            jsonPath("$[2].occupancy") { value(12) }
             jsonPath("$[2].freeSpots") { value(0) }
         }
         assertThat(bodyOf(result).size()).isEqualTo(3)
@@ -114,13 +113,12 @@ class LessonEndpointTest(
 
     @Test
     fun `DI43_anOverbookedLessonShowsZeroFreeSpotsAndTheOverbookedFlag`() {
-        val slotId = slot(capacity = 1)
-        book(slotId, "2026-11-24")
-        book(slotId, "2026-11-24")
+        val slotId = slot()
+        repeat(13) { book(slotId, "2026-11-24") }
 
         lessons(lead, "from=2026-11-24&to=2026-11-24&slotId=$slotId").andExpect {
             status { isOk() }
-            jsonPath("$[0].occupancy") { value(2) }
+            jsonPath("$[0].occupancy") { value(13) }
             jsonPath("$[0].freeSpots") { value(0) }
             jsonPath("$[0].overbooked") { value(true) }
         }

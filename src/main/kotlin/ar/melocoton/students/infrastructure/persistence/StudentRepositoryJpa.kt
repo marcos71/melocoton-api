@@ -45,6 +45,23 @@ class StudentRepositoryJpa(
         jdbc.update("UPDATE student SET fixed_slot_id = ? WHERE user_id = ?", student.fixedSlotId, student.userId)
     }
 
+    override fun countFixedStudents(slotId: Long, excluding: Long?): Int = jdbc.queryForObject(
+        """SELECT count(*) FROM student s JOIN app_user u ON u.id = s.user_id
+           WHERE s.fixed_slot_id = ? AND u.active AND s.user_id IS DISTINCT FROM ?""",
+        Int::class.java, slotId, excluding,
+    ) ?: 0
+
+    override fun countFixedStudentsBySlot(slotIds: Collection<Long>): Map<Long, Int> {
+        if (slotIds.isEmpty()) return emptyMap()
+        val placeholders = slotIds.joinToString(",") { "?" }
+        return jdbc.query(
+            """SELECT s.fixed_slot_id AS slot_id, count(*) AS students FROM student s JOIN app_user u ON u.id = s.user_id
+               WHERE s.fixed_slot_id IN ($placeholders) AND u.active GROUP BY s.fixed_slot_id""",
+            { rs, _ -> rs.getLong("slot_id") to rs.getInt("students") },
+            *slotIds.toTypedArray(),
+        ).toMap()
+    }
+
     override fun findIdsWithActiveFixedSlot(): List<Long> = jdbc.query(
         """SELECT s.user_id FROM student s
            JOIN app_user u ON u.id = s.user_id

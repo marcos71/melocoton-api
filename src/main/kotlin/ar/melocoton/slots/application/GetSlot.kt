@@ -3,6 +3,7 @@ package ar.melocoton.slots.application
 import ar.melocoton.bookings.application.port.BookingRepository
 import ar.melocoton.slots.application.port.SlotRepository
 import ar.melocoton.slots.domain.SlotNotFound
+import ar.melocoton.students.application.port.StudentRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
@@ -12,6 +13,7 @@ import java.time.Clock
 class GetSlot(
     private val slots: SlotRepository,
     private val bookings: BookingRepository,
+    private val students: StudentRepository,
     private val clock: Clock,
 ) {
     @Transactional(readOnly = true)
@@ -19,6 +21,11 @@ class GetSlot(
         val slot = slots.findById(id) ?: throw SlotNotFound()
         val now = clock.workshopNow()
         val occupancy = bookings.occupancyByLessonDate(slot.id, now.toLocalDate())
-        return SlotOverview(slot, slot.overbookedLessons(occupancy, now))
+        return SlotOverview(
+            slot,
+            slot.overbookedLessons(occupancy, now),
+            scheduleEditable = slot.scheduleEditable(bookings.existsForSlot(slot.id)),
+            fixedStudents = students.countFixedStudents(slot.id),
+        )
     }
 }

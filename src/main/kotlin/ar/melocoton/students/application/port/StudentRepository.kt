@@ -24,6 +24,15 @@ interface StudentRepository {
     /** Writes the fixed slot of a student already locked in this transaction. */
     fun saveFixedSlot(student: Student)
 
+    /**
+     * Active students whose fixed slot is [slotId], not counting [excluding] (DI-66). Read it holding the
+     * slot lock, after taking it: that is what makes the capacity limit safe under concurrency (D-43).
+     */
+    fun countFixedStudents(slotId: Long, excluding: Long? = null): Int
+
+    /** [countFixedStudents] of each slot in one query. Slots without fixed students are absent from the map. */
+    fun countFixedStudentsBySlot(slotIds: Collection<Long>): Map<Long, Int>
+
     /** Ids of the active monthly students whose fixed slot is active, ascending. Plain read: lock each student before acting on it. */
     fun findIdsWithActiveFixedSlot(): List<Long>
 }
