@@ -276,6 +276,53 @@ class SchemaConstraintsTest(@Autowired private val jdbc: JdbcTemplate) {
         }
     }
 
+    private fun insertVoidedEvent(pieceId: Long, userId: Long, previousStatus: String?, newStatus: String?) {
+        jdbc.update(
+            """INSERT INTO piece_status_history (piece_id, previous_status, new_status, event_type, occurred_at, user_id, operation_id)
+               VALUES (?, ?, ?, 'VOIDED', now(), ?, gen_random_uuid())""",
+            pieceId, previousStatus, newStatus, userId,
+        )
+    }
+
+    @Test
+    fun `RN-05 a voidance records the previous status and no new one`() {
+        val student = f.monthlyStudent()
+        val piece = f.piece(student)
+
+        assertFailsWithSqlState(CHECK_VIOLATION) { insertVoidedEvent(piece, student, "GLAZED", "GLAZED") }
+    }
+
+    @Test
+    fun `RN-05 a voidance without the previous status is rejected`() {
+        val student = f.monthlyStudent()
+        val piece = f.piece(student)
+
+        assertFailsWithSqlState(CHECK_VIOLATION) { insertVoidedEvent(piece, student, null, null) }
+    }
+
+    @Test
+    fun `RN-05 a voidance with the previous status and no new status is accepted`() {
+        val student = f.monthlyStudent()
+        val piece = f.piece(student)
+
+        insertVoidedEvent(piece, student, "GLAZED", null)
+    }
+
+    @Test
+    fun `RF-56 a void reason is never blank`() {
+        val student = f.monthlyStudent()
+        val piece = f.piece(student)
+        assertFailsWithSqlState(CHECK_VIOLATION) {
+            jdbc.update("UPDATE piece SET voided_at = now(), voided_by = ?, void_reason = '   ' WHERE id = ?", student, piece)
+        }
+    }
+
+    @Test
+    fun `RF-24 a piece name is never blank`() {
+        val student = f.monthlyStudent()
+        assertFailsWithSqlState(CHECK_VIOLATION) { f.piece(student, name = "  ") }
+    }
+
     // --- Payments ------------------------------------------------------------------------------
 
     private fun insertPayment(concept: String, period: String?, bookingId: Long?, amount: Int) {

@@ -63,6 +63,8 @@ class SecurityConfig {
                 authorize("/api/v1/students/me/**", hasRole("STUDENT"))
                 authorize("/api/v1/students/directory", hasAnyRole("LEAD_TEACHER", "ASSISTANT_TEACHER"))
                 authorize("/api/v1/students/**", hasRole("LEAD_TEACHER"))
+                // The teachers' pieces: the lead and the assistant teacher (DI-75). ** also matches the bare path.
+                authorize("/api/v1/pieces/**", hasAnyRole("LEAD_TEACHER", "ASSISTANT_TEACHER"))
                 authorize("/api/**", authenticated)
                 // Outside the API: Swagger UI, the OpenAPI document and Spring's error page.
                 authorize(anyRequest, permitAll)

@@ -523,6 +523,516 @@
         "tags" : [ "Bookings" ]
       }
     },
+    "/api/v1/pieces" : {
+      "get" : {
+        "description" : "Pieces of inactive students are included; voided pieces are not (DI-74). studentId and status narrow the list when sent. advanceTo and revertTo are the actions each piece allows (DI-70). Paged with a cursor (DI-87): send the nextCursor of a page to get the next one; it is null on the last page.",
+        "operationId" : "listPieces",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "studentId",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }, {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "IN_PROGRESS", "BISQUE_FIRED", "GLAZED", "FINISHED" ]
+          }
+        }, {
+          "description" : "The nextCursor of the previous page; omit for the first page",
+          "in" : "query",
+          "name" : "cursor",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "default" : 50,
+            "maximum" : 100,
+            "minimum" : 1
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PiecePageResponse"
+                }
+              }
+            },
+            "description" : "The pieces"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "validation_error: status is not a piece status, the cursor is not valid or limit is not between 1 and 100"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "too_many_requests: more than 60 requests in a minute from the same user"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "List the pieces of all students, most recently updated first (RF-31, RF-32, DI-71)",
+        "tags" : [ "Pieces" ]
+      },
+      "post" : {
+        "description" : "The student must be active. The name must not be used by another piece of the student that is neither voided nor finished (DI-26, DI-73).",
+        "operationId" : "createPiece",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreatePieceRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PieceDetailResponse"
+                }
+              }
+            },
+            "description" : "The new piece"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "validation_error: the name is missing, blank or longer than 100 characters, or the notes are longer than 500"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "not_found: the id is not a student"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "student_inactive. duplicate_piece_name"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "too_many_requests: more than 60 requests in a minute from the same user"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "A teacher creates a piece for a student, In progress (CU-12, RF-24, RF-25)",
+        "tags" : [ "Pieces" ]
+      }
+    },
+    "/api/v1/pieces/bulk-change-status" : {
+      "post" : {
+        "description" : "All or nothing. Every item carries the status the person saw; they must all be the same and not Terminada. A bulk change only advances. If any piece changed or was voided meanwhile, nothing changes and the response lists them all.",
+        "operationId" : "bulkChangePieceStatus",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/BulkChangePieceStatusRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BulkChangeResponse"
+                }
+              }
+            },
+            "description" : "The summary of the change"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "validation_error: empty selection, repeated piece or more than 500 items. mixed_statuses: the items have different expected statuses. no_next_status: the pieces are Terminadas"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "not_found: a piece of the selection does not exist"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "status_conflict: some pieces changed or are voided, details is PieceConflictDetails"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "too_many_requests: more than 60 requests in a minute from the same user"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "Advance several pieces of the same status together (CU-14, RF-29, RF-30, D-06)",
+        "tags" : [ "Pieces" ]
+      }
+    },
+    "/api/v1/pieces/{id}" : {
+      "get" : {
+        "operationId" : "getPiece",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PieceDetailResponse"
+                }
+              }
+            },
+            "description" : "The piece"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "not_found: the piece does not exist or is voided (DI-74)"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "too_many_requests: more than 60 requests in a minute from the same user"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "A piece with its history, newest event first (RF-28)",
+        "tags" : [ "Pieces" ]
+      },
+      "patch" : {
+        "description" : "The notes replace the stored value. Any other field is rejected.",
+        "operationId" : "editPiece",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/EditPieceRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PieceDetailResponse"
+                }
+              }
+            },
+            "description" : "The piece, edited"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "validation_error: invalid name or notes, or a field that cannot be edited"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "not_found: the piece does not exist or is voided (DI-74)"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "status_conflict: the piece was voided meanwhile, details is PieceConflictDetails. duplicate_piece_name"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "too_many_requests: more than 60 requests in a minute from the same user"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "A teacher edits the name and notes of a piece in any status (RF-27)",
+        "tags" : [ "Pieces" ]
+      }
+    },
+    "/api/v1/pieces/{id}/change-status" : {
+      "post" : {
+        "description" : "expectedStatus is the status the person saw; if the piece has another one nothing changes. A revert is recorded as a correction (RN-05).",
+        "operationId" : "changePieceStatus",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ChangePieceStatusRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PieceDetailResponse"
+                }
+              }
+            },
+            "description" : "The piece, changed"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "invalid_transition: newStatus is neither the next nor the previous status. validation_error"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "not_found: the piece does not exist or is voided (DI-74)"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "status_conflict: the piece changed or was voided meanwhile, details is PieceConflictDetails. duplicate_piece_name: reverting a Terminada piece whose name another active piece of the student now uses"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "too_many_requests: more than 60 requests in a minute from the same user"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "Advance a piece one step or revert it one step (CU-13, RF-26, RN-04, D-34)",
+        "tags" : [ "Pieces" ]
+      }
+    },
+    "/api/v1/pieces/{id}/void" : {
+      "post" : {
+        "description" : "The piece disappears from every list and read; its history stays.",
+        "operationId" : "voidPiece",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/VoidPieceRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "The piece was voided"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "validation_error: the reason is missing, blank or longer than 500 characters"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "not_found: the piece does not exist or is voided (DI-74)"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "status_conflict: the piece changed or was voided meanwhile, details is PieceConflictDetails"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "too_many_requests: more than 60 requests in a minute from the same user"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "Void a piece with a reason (CU-13, RF-56, RN-20, DI-74)",
+        "tags" : [ "Pieces" ]
+      }
+    },
     "/api/v1/slots" : {
       "get" : {
         "description" : "Each slot carries its future lessons with more occupied places than the capacity (DI-43).",
@@ -1028,6 +1538,260 @@
         } ],
         "summary" : "The students' name and phone, for the lead and the assistant teacher (RF-24, RF-62, D-29, DI-76)",
         "tags" : [ "Students" ]
+      }
+    },
+    "/api/v1/students/me/pieces" : {
+      "get" : {
+        "description" : "Voided pieces are not listed (DI-74). Paged with a cursor (DI-87): send the nextCursor of a page to get the next one; it is null on the last page.",
+        "operationId" : "listMyPieces",
+        "parameters" : [ {
+          "description" : "The nextCursor of the previous page; omit for the first page",
+          "in" : "query",
+          "name" : "cursor",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "default" : 50,
+            "maximum" : 100,
+            "minimum" : 1
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MyPiecePageResponse"
+                }
+              }
+            },
+            "description" : "The pieces"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "validation_error: the cursor is not valid or limit is not between 1 and 100"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "too_many_requests: more than 60 requests in a minute from the same user"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "The student's own pieces, most recently updated first (RF-31, DI-71)",
+        "tags" : [ "My pieces" ]
+      },
+      "post" : {
+        "description" : "The name must not be used by another piece of the student that is neither voided nor finished (DI-26, DI-73).",
+        "operationId" : "createMyPiece",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateMyPieceRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MyPieceDetailResponse"
+                }
+              }
+            },
+            "description" : "The new piece"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "validation_error: the name is missing, blank or longer than 100 characters, or the notes are longer than 500"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "duplicate_piece_name"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "too_many_requests: more than 60 requests in a minute from the same user"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "The student creates a piece, In progress (CU-12, RF-24, RF-25)",
+        "tags" : [ "My pieces" ]
+      }
+    },
+    "/api/v1/students/me/pieces/{id}" : {
+      "get" : {
+        "operationId" : "getMyPiece",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MyPieceDetailResponse"
+                }
+              }
+            },
+            "description" : "The piece"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "not_found: the piece does not exist, is voided or belongs to another student (DI-75)"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "too_many_requests: more than 60 requests in a minute from the same user"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "One of the student's own pieces with its history (RF-28)",
+        "tags" : [ "My pieces" ]
+      },
+      "patch" : {
+        "description" : "The notes replace the stored value. Any other field, the status included, is rejected.",
+        "operationId" : "editMyPiece",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/EditPieceRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MyPieceDetailResponse"
+                }
+              }
+            },
+            "description" : "The piece, edited"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "validation_error: invalid name or notes, or a field that cannot be edited"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "not_found: the piece does not exist, is voided or belongs to another student (DI-75)"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "piece_not_editable: the piece is no longer In progress. duplicate_piece_name"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "too_many_requests: more than 60 requests in a minute from the same user"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "The student edits the name and notes of a piece that is In progress (RF-27, RN-20)",
+        "tags" : [ "My pieces" ]
       }
     },
     "/api/v1/students/{id}" : {
@@ -1537,6 +2301,87 @@
         },
         "required" : [ "id", "lessonDate", "slotId", "status", "type" ]
       },
+      "BulkChangeItemRequest" : {
+        "type" : "object",
+        "properties" : {
+          "expectedStatus" : {
+            "type" : "string",
+            "enum" : [ "IN_PROGRESS", "BISQUE_FIRED", "GLAZED", "FINISHED" ]
+          },
+          "pieceId" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        },
+        "required" : [ "expectedStatus", "pieceId" ]
+      },
+      "BulkChangePieceStatusRequest" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/BulkChangeItemRequest",
+              "description" : "Up to 500 items"
+            },
+            "maxItems" : 500
+          }
+        },
+        "required" : [ "items" ]
+      },
+      "BulkChangeResponse" : {
+        "type" : "object",
+        "properties" : {
+          "count" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "newStatus" : {
+            "type" : "string",
+            "enum" : [ "IN_PROGRESS", "BISQUE_FIRED", "GLAZED", "FINISHED" ]
+          },
+          "operationId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "studentCount" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "How many students own the changed pieces"
+          }
+        },
+        "required" : [ "count", "newStatus", "operationId", "studentCount" ]
+      },
+      "ChangePieceStatusRequest" : {
+        "type" : "object",
+        "properties" : {
+          "expectedStatus" : {
+            "type" : "string",
+            "enum" : [ "IN_PROGRESS", "BISQUE_FIRED", "GLAZED", "FINISHED" ]
+          },
+          "newStatus" : {
+            "type" : "string",
+            "enum" : [ "IN_PROGRESS", "BISQUE_FIRED", "GLAZED", "FINISHED" ]
+          }
+        },
+        "required" : [ "expectedStatus", "newStatus" ]
+      },
+      "ConflictingPiece" : {
+        "properties" : {
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "reason" : {
+            "type" : "string",
+            "enum" : [ "CHANGED", "VOIDED" ]
+          }
+        },
+        "required" : [ "id", "name", "reason" ]
+      },
       "CreateAssistantTeacherRequest" : {
         "type" : "object",
         "properties" : {
@@ -1557,6 +2402,40 @@
           }
         },
         "required" : [ "email", "name", "phone" ]
+      },
+      "CreateMyPieceRequest" : {
+        "type" : "object",
+        "properties" : {
+          "name" : {
+            "type" : "string",
+            "maxLength" : 100
+          },
+          "notes" : {
+            "type" : [ "string", "null" ],
+            "description" : "Blank means no notes",
+            "maxLength" : 500
+          }
+        },
+        "required" : [ "name" ]
+      },
+      "CreatePieceRequest" : {
+        "type" : "object",
+        "properties" : {
+          "name" : {
+            "type" : "string",
+            "maxLength" : 100
+          },
+          "notes" : {
+            "type" : [ "string", "null" ],
+            "description" : "Blank means no notes",
+            "maxLength" : 500
+          },
+          "studentId" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        },
+        "required" : [ "name", "studentId" ]
       },
       "CreateSlotRequest" : {
         "type" : "object",
@@ -1608,6 +2487,21 @@
           }
         },
         "required" : [ "email", "enrollmentType", "name", "phone" ]
+      },
+      "EditPieceRequest" : {
+        "type" : "object",
+        "properties" : {
+          "name" : {
+            "type" : "string",
+            "maxLength" : 100
+          },
+          "notes" : {
+            "type" : [ "string", "null" ],
+            "description" : "Null or blank clears the notes",
+            "maxLength" : 500
+          }
+        },
+        "required" : [ "name" ]
       },
       "ErrorBody" : {
         "properties" : {
@@ -1784,6 +2678,110 @@
         },
         "required" : [ "accessToken", "expiresAt", "user" ]
       },
+      "MyPieceDetailResponse" : {
+        "type" : "object",
+        "properties" : {
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "ISO-8601 instant in UTC"
+          },
+          "editable" : {
+            "type" : "boolean"
+          },
+          "history" : {
+            "type" : "array",
+            "description" : "Newest first",
+            "items" : {
+              "$ref" : "#/components/schemas/MyPieceHistoryEntryResponse"
+            }
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "notes" : {
+            "type" : [ "string", "null" ]
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "IN_PROGRESS", "BISQUE_FIRED", "GLAZED", "FINISHED" ]
+          },
+          "updatedAt" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "The last history event (DI-71)"
+          }
+        },
+        "required" : [ "createdAt", "editable", "history", "id", "name", "status", "updatedAt" ]
+      },
+      "MyPieceHistoryEntryResponse" : {
+        "type" : "object",
+        "properties" : {
+          "correction" : {
+            "type" : "boolean"
+          },
+          "eventType" : {
+            "type" : "string",
+            "enum" : [ "CREATED", "ADVANCED", "REVERTED", "VOIDED" ]
+          },
+          "newStatus" : {
+            "type" : [ "string", "null" ],
+            "enum" : [ "IN_PROGRESS", "BISQUE_FIRED", "GLAZED", "FINISHED" ]
+          },
+          "occurredAt" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "ISO-8601 instant in UTC"
+          },
+          "previousStatus" : {
+            "type" : [ "string", "null" ],
+            "enum" : [ "IN_PROGRESS", "BISQUE_FIRED", "GLAZED", "FINISHED" ]
+          }
+        },
+        "required" : [ "correction", "eventType", "occurredAt" ]
+      },
+      "MyPieceItemResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "IN_PROGRESS", "BISQUE_FIRED", "GLAZED", "FINISHED" ]
+          },
+          "updatedAt" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "ISO-8601 instant in UTC"
+          }
+        },
+        "required" : [ "id", "name", "status", "updatedAt" ]
+      },
+      "MyPiecePageResponse" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/MyPieceItemResponse"
+            }
+          },
+          "nextCursor" : {
+            "type" : [ "string", "null" ],
+            "description" : "Pass as cursor to get the next page; null on the last page"
+          }
+        },
+        "required" : [ "items" ]
+      },
       "OverbookedLessonResponse" : {
         "type" : "object",
         "properties" : {
@@ -1811,6 +2809,174 @@
           }
         },
         "required" : [ "email" ]
+      },
+      "PieceConflictDetails" : {
+        "properties" : {
+          "pieces" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ConflictingPiece"
+            }
+          }
+        },
+        "required" : [ "pieces" ]
+      },
+      "PieceDetailResponse" : {
+        "type" : "object",
+        "properties" : {
+          "advanceTo" : {
+            "type" : [ "string", "null" ],
+            "enum" : [ "IN_PROGRESS", "BISQUE_FIRED", "GLAZED", "FINISHED" ]
+          },
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "ISO-8601 instant in UTC"
+          },
+          "history" : {
+            "type" : "array",
+            "description" : "Newest first",
+            "items" : {
+              "$ref" : "#/components/schemas/PieceHistoryEntryResponse"
+            }
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "notes" : {
+            "type" : [ "string", "null" ]
+          },
+          "revertTo" : {
+            "type" : [ "string", "null" ],
+            "enum" : [ "IN_PROGRESS", "BISQUE_FIRED", "GLAZED", "FINISHED" ]
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "IN_PROGRESS", "BISQUE_FIRED", "GLAZED", "FINISHED" ]
+          },
+          "student" : {
+            "$ref" : "#/components/schemas/PieceStudentResponse"
+          },
+          "updatedAt" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "The last history event (DI-71)"
+          }
+        },
+        "required" : [ "createdAt", "history", "id", "name", "status", "student", "updatedAt" ]
+      },
+      "PieceHistoryEntryResponse" : {
+        "type" : "object",
+        "properties" : {
+          "changedBy" : {
+            "$ref" : "#/components/schemas/PieceUserResponse"
+          },
+          "correction" : {
+            "type" : "boolean"
+          },
+          "eventType" : {
+            "type" : "string",
+            "enum" : [ "CREATED", "ADVANCED", "REVERTED", "VOIDED" ]
+          },
+          "newStatus" : {
+            "type" : [ "string", "null" ],
+            "enum" : [ "IN_PROGRESS", "BISQUE_FIRED", "GLAZED", "FINISHED" ]
+          },
+          "occurredAt" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "ISO-8601 instant in UTC"
+          },
+          "operationId" : {
+            "type" : "string",
+            "format" : "uuid",
+            "description" : "Groups the pieces of one bulk change"
+          },
+          "previousStatus" : {
+            "type" : [ "string", "null" ],
+            "enum" : [ "IN_PROGRESS", "BISQUE_FIRED", "GLAZED", "FINISHED" ]
+          }
+        },
+        "required" : [ "changedBy", "correction", "eventType", "occurredAt", "operationId" ]
+      },
+      "PieceItemResponse" : {
+        "type" : "object",
+        "properties" : {
+          "advanceTo" : {
+            "type" : [ "string", "null" ],
+            "enum" : [ "IN_PROGRESS", "BISQUE_FIRED", "GLAZED", "FINISHED" ]
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "revertTo" : {
+            "type" : [ "string", "null" ],
+            "enum" : [ "IN_PROGRESS", "BISQUE_FIRED", "GLAZED", "FINISHED" ]
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "IN_PROGRESS", "BISQUE_FIRED", "GLAZED", "FINISHED" ]
+          },
+          "student" : {
+            "$ref" : "#/components/schemas/PieceStudentResponse"
+          },
+          "updatedAt" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "ISO-8601 instant in UTC"
+          }
+        },
+        "required" : [ "id", "name", "status", "student", "updatedAt" ]
+      },
+      "PiecePageResponse" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PieceItemResponse"
+            }
+          },
+          "nextCursor" : {
+            "type" : [ "string", "null" ],
+            "description" : "Pass as cursor to get the next page; null on the last page"
+          }
+        },
+        "required" : [ "items" ]
+      },
+      "PieceStudentResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "id", "name" ]
+      },
+      "PieceUserResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "id", "name" ]
       },
       "SessionResponse" : {
         "type" : "object",
@@ -2126,6 +3292,16 @@
             "type" : [ "string", "null" ]
           }
         }
+      },
+      "VoidPieceRequest" : {
+        "type" : "object",
+        "properties" : {
+          "reason" : {
+            "type" : "string",
+            "maxLength" : 500
+          }
+        },
+        "required" : [ "reason" ]
       }
     },
     "securitySchemes" : {
