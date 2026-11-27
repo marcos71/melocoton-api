@@ -1,5 +1,6 @@
 package ar.melocoton.pieces.domain
 
+import ar.melocoton.shared.domain.BusinessRuleViolation
 import java.time.Instant
 import java.util.UUID
 
@@ -49,6 +50,25 @@ class Piece(
     }
 
     /**
+     * A voided piece disappears for everyone (DI-74): a request that finds one already voided gets a not found.
+     * A piece voided after the request loaded it is a conflict instead (see [conflict]).
+     *
+     * @throws PieceNotFound the piece is voided
+     */
+    fun requireVisible() {
+        if (voided) throw PieceNotFound()
+    }
+
+    /**
+     * The same for a student: another student's piece is not found either (DI-75).
+     *
+     * @throws PieceNotFound the piece is voided or belongs to another student
+     */
+    fun requireVisibleTo(studentId: Long) {
+        if (voided || studentId != this.studentId) throw PieceNotFound()
+    }
+
+    /**
      * The owner changes name and notes while the piece is in progress (RF-27, RN-20).
      *
      * @throws PieceNotFound the piece is voided or belongs to another student
@@ -56,7 +76,7 @@ class Piece(
      * @throws DuplicatePieceName the student has another piece with that name
      */
     fun editAsOwner(ownerId: Long, text: PieceText, namesInUse: List<PieceName>) {
-        if (voided || ownerId != studentId) throw PieceNotFound()
+        requireVisibleTo(ownerId)
         if (!status.editableByOwner) throw PieceNotEditable()
         applyText(text, namesInUse)
     }
@@ -93,6 +113,12 @@ class Piece(
     fun conflict() = PieceStatusConflict(
         listOf(ConflictingPiece(id, name, if (voided) PieceConflictReason.VOIDED else PieceConflictReason.CHANGED)),
     )
+
+    /**
+     * The error to report, on this reloaded piece, when the owner's guarded update touched no row:
+     * voided meanwhile is a not found (DI-74); otherwise it left IN_PROGRESS.
+     */
+    fun ownerEditConflict(): BusinessRuleViolation = if (voided) PieceNotFound() else PieceNotEditable()
 
     private fun requireNotVoided() {
         if (voided) throw conflict()

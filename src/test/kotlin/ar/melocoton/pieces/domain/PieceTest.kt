@@ -251,4 +251,25 @@ class PieceTest {
         assertThat(FINISHED.previous()).isEqualTo(GLAZED)
         assertThat(PieceStatus.entries.filter { it.editableByOwner }).containsExactly(IN_PROGRESS)
     }
+
+    // ---- Visibility (DI-74, DI-75) ----
+
+    @Test
+    fun `DI74_aVoidedPieceIsNotFoundForWhoeverLoadsIt`() {
+        assertThatThrownBy { piece(voided = true).requireVisible() }.isInstanceOf(PieceNotFound::class.java)
+        piece().requireVisible()
+    }
+
+    @Test
+    fun `DI75_aPieceIsVisibleOnlyToItsOwnerAndOnlyWhileNotVoided`() {
+        piece().requireVisibleTo(ownerId)
+        assertThatThrownBy { piece().requireVisibleTo(ownerId + 1) }.isInstanceOf(PieceNotFound::class.java)
+        assertThatThrownBy { piece(voided = true).requireVisibleTo(ownerId) }.isInstanceOf(PieceNotFound::class.java)
+    }
+
+    @Test
+    fun `RF27_anOwnerEditThatMissedIsNotFoundWhenVoidedAndNotEditableOtherwise`() {
+        assertThat(piece(voided = true).ownerEditConflict()).isInstanceOf(PieceNotFound::class.java)
+        assertThat(piece(status = BISQUE_FIRED).ownerEditConflict()).isInstanceOf(PieceNotEditable::class.java)
+    }
 }

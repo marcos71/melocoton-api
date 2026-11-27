@@ -5,6 +5,7 @@ import org.assertj.core.api.Assertions.catchThrowable
 import org.springframework.jdbc.core.JdbcTemplate
 import java.sql.SQLException
 import java.time.LocalDate
+import java.time.OffsetDateTime
 import java.util.UUID
 
 /** PostgreSQL SQL states the schema tests expect. */
@@ -23,6 +24,9 @@ fun assertFailsWithSqlState(sqlState: String, block: () -> Unit) {
     }
     assertThat(sqlError.sqlState).describedAs(sqlError.message).isEqualTo(sqlState)
 }
+
+/** When the fixtures' creation events happened: before any instant of the fixed test clock, so later events sort after them. */
+private val CREATION_EVENT_AT: OffsetDateTime = OffsetDateTime.parse("2026-01-01T00:00:00Z")
 
 /** Inserts minimal valid rows, as the API role, so each test only varies what it checks. */
 class SchemaFixtures(private val jdbc: JdbcTemplate) {
@@ -87,8 +91,8 @@ class SchemaFixtures(private val jdbc: JdbcTemplate) {
         if (withCreationEvent) {
             jdbc.update(
                 """INSERT INTO piece_status_history (piece_id, new_status, event_type, occurred_at, user_id, operation_id)
-                   VALUES (?, 'IN_PROGRESS', 'CREATED', now(), ?, gen_random_uuid())""",
-                pieceId, studentId,
+                   VALUES (?, 'IN_PROGRESS', 'CREATED', ?, ?, gen_random_uuid())""",
+                pieceId, CREATION_EVENT_AT, studentId,
             )
         }
         return pieceId

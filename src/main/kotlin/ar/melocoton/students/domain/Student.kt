@@ -76,6 +76,15 @@ class Student(
     }
 
     /**
+     * Only an active student owns new pieces (RF-24).
+     *
+     * @throws StudentInactive the student is inactive
+     */
+    fun requireActive() {
+        if (!active) throw StudentInactive()
+    }
+
+    /**
      * Sets the fixed slot (RF-08, DI-27) and returns the previous one, null when there was none.
      * Assigning the slot the student already has is allowed.
      *

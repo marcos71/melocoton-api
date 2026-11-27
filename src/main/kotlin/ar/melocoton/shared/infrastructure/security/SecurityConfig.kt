@@ -60,6 +60,8 @@ class SecurityConfig {
                 // future subpath such as /{id}/fixed-slot is closed to other roles by default.
                 authorize("/api/v1/students/me/**", hasRole("STUDENT"))
                 authorize("/api/v1/students/**", hasRole("LEAD_TEACHER"))
+                // The teachers' pieces: the lead and the assistant teacher (DI-75). ** also matches the bare path.
+                authorize("/api/v1/pieces/**", hasAnyRole("LEAD_TEACHER", "ASSISTANT_TEACHER"))
                 authorize("/api/**", authenticated)
                 // Outside the API: Swagger UI, the OpenAPI document and Spring's error page.
                 authorize(anyRequest, permitAll)

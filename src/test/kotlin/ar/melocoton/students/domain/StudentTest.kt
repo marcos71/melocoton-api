@@ -168,4 +168,12 @@ class StudentTest {
         assertThat(change.name).isNull()
         assertThat(change.phone).isEqualTo("1166667777")
     }
+
+    @Test
+    fun `RF24_anInactiveStudentCannotOwnANewPiece`() {
+        val inactive = Student(1, EnrollmentType.DROP_IN, null, null, active = false)
+
+        assertThatThrownBy { inactive.requireActive() }.isInstanceOf(StudentInactive::class.java)
+        Student(2, EnrollmentType.DROP_IN, null, null).requireActive()
+    }
 }
