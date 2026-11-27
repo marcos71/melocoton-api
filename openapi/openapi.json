@@ -1474,6 +1474,72 @@
         "tags" : [ "Students" ]
       }
     },
+    "/api/v1/students/directory" : {
+      "get" : {
+        "description" : "Only id, name, phone and active. status defaults to ACTIVE; ALL includes inactive students.",
+        "operationId" : "listStudentDirectory",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "default" : "ACTIVE",
+            "enum" : [ "ACTIVE", "INACTIVE", "ALL" ]
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/StudentDirectoryEntryResponse"
+                  }
+                }
+              }
+            },
+            "description" : "The students, ordered by name"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "validation_error: status has an invalid value"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "role_not_allowed: only the lead and the assistant teacher"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "too_many_requests: more than 60 requests in a minute from the same user"
+          }
+        },
+        "security" : [ {
+          "bearerAuth" : [ ]
+        } ],
+        "summary" : "The students' name and phone, for the lead and the assistant teacher (RF-24, RF-62, D-29, DI-76)",
+        "tags" : [ "Students" ]
+      }
+    },
     "/api/v1/students/me/pieces" : {
       "get" : {
         "description" : "Voided pieces are not listed (DI-74). Paged with a cursor (DI-87): send the nextCursor of a page to get the next one; it is null on the last page.",
@@ -3051,6 +3117,25 @@
           }
         },
         "required" : [ "active", "capacity", "dayOfWeek", "endTime", "id", "startTime" ]
+      },
+      "StudentDirectoryEntryResponse" : {
+        "type" : "object",
+        "properties" : {
+          "active" : {
+            "type" : "boolean"
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "phone" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "active", "id", "name", "phone" ]
       },
       "StudentItemResponse" : {
         "type" : "object",

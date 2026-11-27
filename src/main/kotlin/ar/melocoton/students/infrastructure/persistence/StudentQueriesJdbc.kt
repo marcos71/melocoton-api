@@ -3,6 +3,7 @@ package ar.melocoton.students.infrastructure.persistence
 import ar.melocoton.bookings.domain.BookingStatus
 import ar.melocoton.bookings.domain.BookingType
 import ar.melocoton.students.application.port.FixedSlotSummary
+import ar.melocoton.students.application.port.StudentDirectoryEntry
 import ar.melocoton.students.application.port.StudentProfile
 import ar.melocoton.students.application.port.StudentQueries
 import ar.melocoton.students.application.port.StudentSummary
@@ -33,11 +34,7 @@ class StudentQueriesJdbc(private val jdbc: JdbcTemplate) : StudentQueries {
     override fun findAll(filter: StudentFilter): List<StudentSummary> {
         val conditions = mutableListOf<String>()
         val args = mutableListOf<Any>()
-        when (filter.status) {
-            StudentStatusFilter.ACTIVE -> conditions += "u.active"
-            StudentStatusFilter.INACTIVE -> conditions += "NOT u.active"
-            StudentStatusFilter.ALL -> Unit
-        }
+        statusCondition(filter.status)?.let { conditions += it }
         filter.enrollmentType?.let {
             conditions += "s.enrollment_type = ?"
             args += it.name
@@ -48,6 +45,14 @@ class StudentQueriesJdbc(private val jdbc: JdbcTemplate) : StudentQueries {
         }
         val where = if (conditions.isEmpty()) "" else conditions.joinToString(" AND ", prefix = "WHERE ")
         return jdbc.query("$PROFILE_SELECT $where ORDER BY lower(u.name), u.id", SUMMARY_ROW, *args.toTypedArray())
+    }
+
+    override fun findDirectory(status: StudentStatusFilter): List<StudentDirectoryEntry> {
+        val where = statusCondition(status)?.let { "WHERE $it" }.orEmpty()
+        return jdbc.query(
+            "SELECT u.id, u.name, u.phone, u.active FROM student s JOIN app_user u ON u.id = s.user_id $where ORDER BY lower(u.name), u.id",
+            DIRECTORY_ROW,
+        )
     }
 
     override fun findUpcomingLessons(id: Long, fromDate: LocalDate): List<UpcomingLesson> = jdbc.query(
@@ -88,6 +93,22 @@ class StudentQueriesJdbc(private val jdbc: JdbcTemplate) : StudentQueries {
                 monthlyStartDate = rs.getObject("monthly_start_date", LocalDate::class.java),
                 fixedSlot = rs.fixedSlot(),
             )
+        }
+
+        private val DIRECTORY_ROW = RowMapper { rs, _ ->
+            StudentDirectoryEntry(
+                id = rs.getLong("id"),
+                name = rs.getString("name"),
+                phone = rs.getString("phone"),
+                active = rs.getBoolean("active"),
+            )
+        }
+
+        /** The SQL condition on the account's state, or null when every state is wanted. */
+        private fun statusCondition(status: StudentStatusFilter): String? = when (status) {
+            StudentStatusFilter.ACTIVE -> "u.active"
+            StudentStatusFilter.INACTIVE -> "NOT u.active"
+            StudentStatusFilter.ALL -> null
         }
 
         val SUMMARY_ROW = RowMapper { rs, _ ->

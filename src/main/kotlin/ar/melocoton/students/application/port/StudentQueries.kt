@@ -1,6 +1,7 @@
 package ar.melocoton.students.application.port
 
 import ar.melocoton.students.domain.StudentFilter
+import ar.melocoton.students.domain.StudentStatusFilter
 import java.time.LocalDate
 
 /**
@@ -15,6 +16,9 @@ interface StudentQueries {
 
     /** Students matching [filter], ordered by name ignoring case and then id. */
     fun findAll(filter: StudentFilter): List<StudentSummary>
+
+    /** Students in the given state with only name and phone, ordered by name ignoring case and then id (DI-76). */
+    fun findDirectory(status: StudentStatusFilter): List<StudentDirectoryEntry>
 
     /**
      * Scheduled bookings of the student for lessons on or after [fromDate], with their slot's day and time.
