@@ -4,6 +4,7 @@ import ar.melocoton.bookings.domain.BookingType
 import ar.melocoton.shared.domain.PersonName
 import ar.melocoton.shared.infrastructure.web.EMAIL_WITH_DOMAIN_DOT
 import ar.melocoton.students.application.port.FixedSlotSummary
+import ar.melocoton.students.application.port.StudentDirectoryEntry
 import ar.melocoton.students.application.port.StudentProfile
 import ar.melocoton.students.application.port.StudentSummary
 import ar.melocoton.students.application.port.UpcomingLesson
@@ -85,6 +86,14 @@ data class StudentItemResponse(
     val active: Boolean,
 )
 
+/** A row of the students directory: only what the assistant teacher may read (RF-62). */
+data class StudentDirectoryEntryResponse(
+    val id: Long,
+    val name: String,
+    val phone: String,
+    val active: Boolean,
+)
+
 /** A student's profile data. */
 data class StudentProfileResponse(
     val id: Long,
@@ -135,6 +144,9 @@ fun StudentSummary.toResponse() = StudentItemResponse(
     fixedSlot = fixedSlot?.toResponse(),
     active = active,
 )
+
+fun StudentDirectoryEntry.toResponse() =
+    StudentDirectoryEntryResponse(id = id, name = name, phone = phone, active = active)
 
 fun StudentProfile.toResponse() = StudentProfileResponse(
     id = id,
