@@ -33,14 +33,18 @@ class StudentDirectoryEndpointTest(
     @Autowired private val tokens: JwtSessionTokens,
 ) {
 
-    private fun tokenFor(role: Role): String {
+    private data class TestUser(val id: Long, val token: String)
+
+    private fun tokenFor(role: Role): String = userWith(role).token
+
+    private fun userWith(role: Role): TestUser {
         val id = jdbc.queryForObject(
             """INSERT INTO app_user (name, email, password_hash, role, phone, active)
                VALUES ('Ana', ?, 'hash', ?, '1100000000', true) RETURNING id""",
             Long::class.javaObjectType, "${UUID.randomUUID()}@test.local", role.name,
         )!!
         val validFrom = jdbc.queryForObject("SELECT sessions_valid_from FROM app_user WHERE id = ?", Instant::class.java, id)!!
-        return tokens.issue(id, role, validFrom, Instant.now()).value
+        return TestUser(id, tokens.issue(id, role, validFrom, Instant.now()).value)
     }
 
     private fun student(name: String, phone: String = "1155550000", active: Boolean = true): Long {
@@ -100,7 +104,7 @@ class StudentDirectoryEndpointTest(
     }
 
     @Test
-    fun `RF32_theDirectoryWithStatusAllIncludesInactiveStudents`() {
+    fun `DI76_theDirectoryWithStatusAllIncludesInactiveStudents`() {
         val active = student("Bruno")
         val inactive = student("Carla", active = false)
 
@@ -123,10 +127,21 @@ class StudentDirectoryEndpointTest(
 
     @Test
     fun `RF24_theDirectoryDoesNotIncludeOtherRoles`() {
-        val teacher = tokenFor(Role.ASSISTANT_TEACHER)
-        val teacherId = jdbc.queryForObject("SELECT max(id) FROM app_user WHERE role = 'ASSISTANT_TEACHER'", Long::class.java)!!
+        val lead = userWith(Role.LEAD_TEACHER)
+        val assistant = userWith(Role.ASSISTANT_TEACHER)
 
-        assertThat(entries(teacher, "?status=ALL").entry(teacherId)).isNull()
+        val result = entries(lead.token, "?status=ALL")
+
+        assertThat(result.entry(lead.id)).isNull()
+        assertThat(result.entry(assistant.id)).isNull()
+    }
+
+    @Test
+    fun `DI76_theDirectoryRuleOpensOnlyTheExactPath`() {
+        directory(tokenFor(Role.ASSISTANT_TEACHER), "/x").andExpect {
+            status { isForbidden() }
+            jsonPath("$.error.code") { value("role_not_allowed") }
+        }
     }
 
     @Test

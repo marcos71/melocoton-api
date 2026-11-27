@@ -95,7 +95,7 @@ class StudentQueriesJdbc(private val jdbc: JdbcTemplate) : StudentQueries {
             )
         }
 
-        val DIRECTORY_ROW = RowMapper { rs, _ ->
+        private val DIRECTORY_ROW = RowMapper { rs, _ ->
             StudentDirectoryEntry(
                 id = rs.getLong("id"),
                 name = rs.getString("name"),
@@ -105,7 +105,7 @@ class StudentQueriesJdbc(private val jdbc: JdbcTemplate) : StudentQueries {
         }
 
         /** The SQL condition on the account's state, or null when every state is wanted. */
-        fun statusCondition(status: StudentStatusFilter): String? = when (status) {
+        private fun statusCondition(status: StudentStatusFilter): String? = when (status) {
             StudentStatusFilter.ACTIVE -> "u.active"
             StudentStatusFilter.INACTIVE -> "NOT u.active"
             StudentStatusFilter.ALL -> null
