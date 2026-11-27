@@ -7,6 +7,7 @@ import ar.melocoton.pieces.application.ListPieces
 import ar.melocoton.shared.domain.SessionUser
 import ar.melocoton.shared.infrastructure.web.ErrorResponse
 import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.media.Content
 import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 
@@ -40,11 +42,25 @@ class MyPieceController(
     @Operation(
         operationId = "listMyPieces",
         summary = "The student's own pieces, most recently updated first (RF-31, DI-71)",
-        description = "Voided pieces are not listed (DI-74).",
+        description = "Voided pieces are not listed (DI-74). Paged with a cursor (DI-87): send the nextCursor of a page " +
+            "to get the next one; it is null on the last page.",
     )
-    @ApiResponses(ApiResponse(responseCode = "200", description = "The pieces"))
-    fun list(@AuthenticationPrincipal user: SessionUser): List<MyPieceItemResponse> =
-        listPieces.listOwn(user.userId).map { it.toMyResponse() }
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "The pieces"),
+        ApiResponse(
+            responseCode = "400",
+            description = "validation_error: the cursor is not valid or limit is not between 1 and 100",
+            content = [Content(schema = Schema(implementation = ErrorResponse::class))],
+        ),
+    )
+    fun list(
+        @AuthenticationPrincipal user: SessionUser,
+        @Parameter(description = "The nextCursor of the previous page; omit for the first page")
+        @RequestParam(required = false) cursor: String?,
+        @Parameter(schema = Schema(type = "integer", minimum = "1", maximum = "$MAX_PAGE_SIZE", defaultValue = "$DEFAULT_PAGE_SIZE"))
+        @RequestParam(required = false) limit: Int?,
+    ): MyPiecePageResponse =
+        listPieces.listOwn(user.userId, cursor?.toPieceCursor(), limit.toPageSize()).toMyResponse()
 
     @GetMapping("/{id}")
     @Operation(operationId = "getMyPiece", summary = "One of the student's own pieces with its history (RF-28)")

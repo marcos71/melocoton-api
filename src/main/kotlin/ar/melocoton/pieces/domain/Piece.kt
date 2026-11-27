@@ -33,10 +33,20 @@ class Piece(
      * Moves one step forward or back (RN-04, D-34). A revert is a correction (RN-05).
      *
      * @param expected the status the person saw
+     * @param namesInUse the student's non-voided pieces, read under the student lock. Only used when
+     * [reclaimsNameOn] the target; otherwise pass `emptyList()`
      * @throws PieceStatusConflict the piece is voided, or its status is not [expected]
      * @throws InvalidTransition [target] is neither the next nor the previous status
+     * @throws DuplicatePieceName leaving FINISHED would take back a name another piece now holds (DI-91)
      */
-    fun changeTo(expected: PieceStatus, target: PieceStatus, by: Long, at: Instant, operationId: UUID): PieceHistoryEvent {
+    fun changeTo(
+        expected: PieceStatus,
+        target: PieceStatus,
+        namesInUse: List<PieceName>,
+        by: Long,
+        at: Instant,
+        operationId: UUID,
+    ): PieceHistoryEvent {
         requireNotVoided()
         if (expected != status) throw conflict()
         val eventType = when (target) {
@@ -44,10 +54,17 @@ class Piece(
             status.previous() -> PieceEventType.REVERTED
             else -> throw InvalidTransition()
         }
+        if (reclaimsNameOn(target)) requireUniqueName(name, namesInUse, excludingPieceId = id)
         val event = PieceHistoryEvent(id, eventType, status, target, at, by, operationId)
         status = target
         return event
     }
+
+    /**
+     * DI-91: a finished piece freed its name, so leaving FINISHED takes it back, and the caller must read
+     * the names under the student lock.
+     */
+    fun reclaimsNameOn(target: PieceStatus): Boolean = !status.holdsName && target.holdsName
 
     /**
      * A voided piece disappears for everyone (DI-74): a request that finds one already voided gets a not found.

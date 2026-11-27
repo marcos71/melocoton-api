@@ -109,6 +109,30 @@ class PieceEndpointTest(
     // ---- changing the status ----
 
     @Test
+    fun `DI91_revertingAFinishedPieceWhoseNameWasReusedIs409AndChangesNothing`() {
+        val student = fixtures.monthlyStudent()
+        val finished = fixtures.piece(student, status = "FINISHED", name = "Bowl", withCreationEvent = true)
+        fixtures.piece(student, name = "bowl")
+
+        api.changeStatus(api.lead(), finished, "FINISHED", "GLAZED").isError(409, "duplicate_piece_name")
+
+        assertThat(api.statusOf(finished)).isEqualTo("FINISHED")
+        assertThat(api.eventCount(finished)).isEqualTo(1)
+    }
+
+    @Test
+    fun `DI91_revertingAFinishedPieceWhoseNameIsFreeWorks`() {
+        val student = fixtures.monthlyStudent()
+        val finished = fixtures.piece(student, status = "FINISHED", name = "Bowl", withCreationEvent = true)
+        fixtures.piece(student, status = "FINISHED", name = "Bowl")
+
+        api.changeStatus(api.lead(), finished, "FINISHED", "GLAZED").andExpect {
+            status { isOk() }
+            jsonPath("$.status") { value("GLAZED") }
+        }
+    }
+
+    @Test
     fun `RF26_aTeacherAdvancesAPieceAndTheResponseOffersTheNextStep`() {
         val piece = fixtures.piece(fixtures.monthlyStudent(), withCreationEvent = true)
 
@@ -224,9 +248,9 @@ class PieceEndpointTest(
 
         result.andExpect {
             status { isOk() }
-            jsonPath("$[0].advanceTo") { value("FINISHED") }
-            jsonPath("$[0].revertTo") { value("BISQUE_FIRED") }
-            jsonPath("$[0].student.id") { value(ana) }
+            jsonPath("$.items[0].advanceTo") { value("FINISHED") }
+            jsonPath("$.items[0].revertTo") { value("BISQUE_FIRED") }
+            jsonPath("$.items[0].student.id") { value(ana) }
         }
         assertThat(api.idsOf(result)).containsExactly(anaGlazed)
     }
@@ -234,6 +258,33 @@ class PieceEndpointTest(
     @Test
     fun `RF32_anUnknownStatusFilterIs400`() {
         api.get(api.lead(), "/pieces?status=BROKEN").isError(400, "validation_error")
+    }
+
+    @Test
+    fun `DI87_theTeacherListIsPagedWithAnOpaqueCursor`() {
+        val student = fixtures.monthlyStudent()
+        repeat(3) { fixtures.piece(student) }
+
+        val first = api.get(api.lead(), "/pieces?studentId=$student&limit=2")
+        val cursor = checkNotNull(api.nextCursorOf(first))
+        val second = api.get(api.lead(), "/pieces?studentId=$student&limit=2&cursor=$cursor")
+
+        first.andExpect { jsonPath("$.items.length()") { value(2) } }
+        second.andExpect { jsonPath("$.items.length()") { value(1) } }
+        assertThat(api.nextCursorOf(second)).isNull()
+        assertThat(api.idsOf(first) + api.idsOf(second)).doesNotHaveDuplicates().hasSize(3)
+    }
+
+    @Test
+    fun `DI87_aMalformedCursorIs400`() {
+        api.get(api.lead(), "/pieces?cursor=garbage!").isError(400, "validation_error")
+    }
+
+    @Test
+    fun `DI87_aLimitOutsideOneTo100OrNotANumberIs400`() {
+        listOf("0", "101", "abc").forEach { limit ->
+            api.get(api.lead(), "/pieces?limit=$limit").isError(400, "validation_error")
+        }
     }
 
     // ---- voiding ----
@@ -387,9 +438,10 @@ class PieceEndpointTest(
     @Test
     fun `RF62_anAssistantTeacherListsAndChangesPieces`() {
         val assistant = api.assistant()
-        val piece = fixtures.piece(fixtures.monthlyStudent(), withCreationEvent = true)
+        val student = fixtures.monthlyStudent()
+        val piece = fixtures.piece(student, withCreationEvent = true)
 
-        assertThat(api.idsOf(api.get(assistant, "/pieces"))).contains(piece)
+        assertThat(api.idsOf(api.get(assistant, "/pieces?studentId=$student"))).contains(piece)
         api.changeStatus(assistant, piece, "IN_PROGRESS", "BISQUE_FIRED").andExpect {
             status { isOk() }
             jsonPath("$.history[0].changedBy.id") { value(assistant.userId) }

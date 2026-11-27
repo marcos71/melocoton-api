@@ -2,6 +2,7 @@ package ar.melocoton.pieces.infrastructure.web
 
 import ar.melocoton.pieces.application.port.PieceDetail
 import ar.melocoton.pieces.application.port.PieceHistoryEntry
+import ar.melocoton.pieces.application.port.PiecePage
 import ar.melocoton.pieces.application.port.PieceSummary
 import ar.melocoton.pieces.domain.PieceEventType
 import ar.melocoton.pieces.domain.PieceStatus
@@ -13,15 +14,11 @@ private const val INSTANT_DESCRIPTION = "ISO-8601 instant in UTC"
 
 /** Body of POST /api/v1/students/me/pieces (RF-24): the owner is the session user. */
 class CreateMyPieceRequest(
-    name: String,
-    notes: String? = null,
-) {
     @field:Schema(maxLength = PieceText.NAME_MAX_LENGTH)
-    val name: String = name.trim()
-
+    val name: String,
     @field:Schema(maxLength = PieceText.NOTES_MAX_LENGTH, description = "Blank means no notes")
-    val notes: String? = notes?.trim()
-}
+    val notes: String? = null,
+)
 
 /** A row of the student's own piece list. */
 data class MyPieceItemResponse(
@@ -30,6 +27,13 @@ data class MyPieceItemResponse(
     val status: PieceStatus,
     @field:Schema(type = "string", format = "date-time", description = INSTANT_DESCRIPTION)
     val updatedAt: Instant,
+)
+
+/** A page of the student's own piece list (DI-87). */
+data class MyPiecePageResponse(
+    val items: List<MyPieceItemResponse>,
+    @field:Schema(description = "Pass as cursor to get the next page; null on the last page")
+    val nextCursor: String?,
 )
 
 /** The student's own piece. [editable] is true only while it is in progress (RF-27, DI-70). */
@@ -56,6 +60,8 @@ data class MyPieceHistoryEntryResponse(
     val occurredAt: Instant,
     val correction: Boolean,
 )
+
+fun PiecePage.toMyResponse() = MyPiecePageResponse(items.map { it.toMyResponse() }, next?.toToken())
 
 fun PieceSummary.toMyResponse() = MyPieceItemResponse(id = id, name = name, status = status, updatedAt = updatedAt)
 

@@ -108,9 +108,39 @@ class MyPieceEndpointTest(
 
         result.andExpect {
             status { isOk() }
-            jsonPath("$[0].status") { value("IN_PROGRESS") }
+            jsonPath("$.items[0].status") { value("IN_PROGRESS") }
         }
         assertThat(api.idsOf(result)).containsExactly(own)
+    }
+
+    @Test
+    fun `DI87_theStudentsOwnListIsPagedToo`() {
+        val student = api.student()
+        repeat(3) { fixtures.piece(student.userId) }
+
+        val first = api.get(student, "/students/me/pieces?limit=2")
+        val cursor = checkNotNull(api.nextCursorOf(first))
+        val second = api.get(student, "/students/me/pieces?limit=2&cursor=$cursor")
+
+        assertThat(api.idsOf(first)).hasSize(2)
+        assertThat(api.idsOf(second)).hasSize(1)
+        assertThat(api.nextCursorOf(second)).isNull()
+        api.get(student, "/students/me/pieces?cursor=garbage!").isError(400, "validation_error")
+        api.get(student, "/students/me/pieces?limit=0").isError(400, "validation_error")
+    }
+
+    @Test
+    fun `CP22_aCursorNeverWidensTheStudentsOwnList`() {
+        val student = api.student()
+        val other = fixtures.monthlyStudent()
+        val own = fixtures.piece(student.userId)
+        repeat(3) { fixtures.piece(other) }
+        val teacherPage = api.get(api.lead(), "/pieces?limit=1")
+        val cursor = checkNotNull(api.nextCursorOf(teacherPage))
+
+        val result = api.get(student, "/students/me/pieces?cursor=$cursor")
+
+        assertThat(api.idsOf(result)).containsOnly(own)
     }
 
     @Test

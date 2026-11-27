@@ -59,7 +59,7 @@ class Student(
         if (enrollmentType != EnrollmentType.MONTHLY) {
             throw EnrollmentTypeMismatch("Solo un alumno mensual tiene turno fijo.")
         }
-        if (!active) throw StudentInactive()
+        requireActive()
     }
 
     /**
@@ -72,7 +72,7 @@ class Student(
         if (enrollmentType != EnrollmentType.DROP_IN) {
             throw EnrollmentTypeMismatch("La clase suelta es solo para alumnos de clase suelta.")
         }
-        if (!active) throw StudentInactive()
+        requireActive()
     }
 
     /**

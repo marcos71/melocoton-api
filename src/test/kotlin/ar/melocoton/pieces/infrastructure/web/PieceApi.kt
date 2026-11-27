@@ -62,10 +62,15 @@ class PieceApi(
 
     fun idOf(result: ResultActionsDsl): Long = json.readTree(result.andReturn().response.contentAsString)["id"].asLong()
 
+    /** The ids of the `items` of a piece list page (DI-87). */
     fun idsOf(result: ResultActionsDsl): List<Long> {
-        val items = json.readTree(result.andReturn().response.contentAsString)
+        val items = json.readTree(result.andReturn().response.contentAsString)["items"]
         return (0 until items.size()).map { items[it]["id"].asLong() }
     }
+
+    /** The `nextCursor` of a piece list page, null on the last one (DI-87). */
+    fun nextCursorOf(result: ResultActionsDsl): String? =
+        json.readTree(result.andReturn().response.contentAsString)["nextCursor"].takeUnless { it.isNull }?.asText()
 
     fun statusOf(pieceId: Long): String = jdbc.queryForObject("SELECT status FROM piece WHERE id = ?", String::class.java, pieceId)!!
 

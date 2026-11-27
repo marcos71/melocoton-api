@@ -525,7 +525,7 @@
     },
     "/api/v1/pieces" : {
       "get" : {
-        "description" : "Pieces of inactive students are included; voided pieces are not (DI-74). studentId and status narrow the list when sent. advanceTo and revertTo are the actions each piece allows (DI-70).",
+        "description" : "Pieces of inactive students are included; voided pieces are not (DI-74). studentId and status narrow the list when sent. advanceTo and revertTo are the actions each piece allows (DI-70). Paged with a cursor (DI-87): send the nextCursor of a page to get the next one; it is null on the last page.",
         "operationId" : "listPieces",
         "parameters" : [ {
           "in" : "query",
@@ -543,16 +543,31 @@
             "type" : "string",
             "enum" : [ "IN_PROGRESS", "BISQUE_FIRED", "GLAZED", "FINISHED" ]
           }
+        }, {
+          "description" : "The nextCursor of the previous page; omit for the first page",
+          "in" : "query",
+          "name" : "cursor",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "default" : 50,
+            "maximum" : 100,
+            "minimum" : 1
+          }
         } ],
         "responses" : {
           "200" : {
             "content" : {
               "*/*" : {
                 "schema" : {
-                  "type" : "array",
-                  "items" : {
-                    "$ref" : "#/components/schemas/PieceItemResponse"
-                  }
+                  "$ref" : "#/components/schemas/PiecePageResponse"
                 }
               }
             },
@@ -566,7 +581,7 @@
                 }
               }
             },
-            "description" : "validation_error: status is not a piece status"
+            "description" : "validation_error: status is not a piece status, the cursor is not valid or limit is not between 1 and 100"
           },
           "429" : {
             "content" : {
@@ -923,7 +938,7 @@
                 }
               }
             },
-            "description" : "status_conflict: the piece changed or was voided meanwhile, details is PieceConflictDetails"
+            "description" : "status_conflict: the piece changed or was voided meanwhile, details is PieceConflictDetails. duplicate_piece_name: reverting a Terminada piece whose name another active piece of the student now uses"
           },
           "429" : {
             "content" : {
@@ -1461,21 +1476,47 @@
     },
     "/api/v1/students/me/pieces" : {
       "get" : {
-        "description" : "Voided pieces are not listed (DI-74).",
+        "description" : "Voided pieces are not listed (DI-74). Paged with a cursor (DI-87): send the nextCursor of a page to get the next one; it is null on the last page.",
         "operationId" : "listMyPieces",
+        "parameters" : [ {
+          "description" : "The nextCursor of the previous page; omit for the first page",
+          "in" : "query",
+          "name" : "cursor",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "default" : 50,
+            "maximum" : 100,
+            "minimum" : 1
+          }
+        } ],
         "responses" : {
           "200" : {
             "content" : {
               "*/*" : {
                 "schema" : {
-                  "type" : "array",
-                  "items" : {
-                    "$ref" : "#/components/schemas/MyPieceItemResponse"
-                  }
+                  "$ref" : "#/components/schemas/MyPiecePageResponse"
                 }
               }
             },
             "description" : "The pieces"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "validation_error: the cursor is not valid or limit is not between 1 and 100"
           },
           "429" : {
             "content" : {
@@ -2659,6 +2700,22 @@
         },
         "required" : [ "id", "name", "status", "updatedAt" ]
       },
+      "MyPiecePageResponse" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/MyPieceItemResponse"
+            }
+          },
+          "nextCursor" : {
+            "type" : [ "string", "null" ],
+            "description" : "Pass as cursor to get the next page; null on the last page"
+          }
+        },
+        "required" : [ "items" ]
+      },
       "OverbookedLessonResponse" : {
         "type" : "object",
         "properties" : {
@@ -2812,6 +2869,22 @@
           }
         },
         "required" : [ "id", "name", "status", "student", "updatedAt" ]
+      },
+      "PiecePageResponse" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PieceItemResponse"
+            }
+          },
+          "nextCursor" : {
+            "type" : [ "string", "null" ],
+            "description" : "Pass as cursor to get the next page; null on the last page"
+          }
+        },
+        "required" : [ "items" ]
       },
       "PieceStudentResponse" : {
         "type" : "object",

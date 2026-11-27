@@ -174,6 +174,34 @@ class PieceConcurrencyTest(
     }
 
     @Test
+    fun `DI91_revertingAFinishedPieceAndCreatingItsNameAtOnceKeepOneActive`() {
+        repeat(5) {
+            val student = fixtures.monthlyStudent()
+            val finished = fixtures.piece(student, status = "FINISHED", name = "Bowl", withCreationEvent = true)
+
+            val outcomes = concurrently(
+                listOf(
+                    { changePieceStatus.change(finished, PieceStatus.FINISHED, PieceStatus.GLAZED, teacher) },
+                    { createPiece.create(student, "Bowl", null, actorId = teacher) },
+                ),
+            )
+
+            assertThat(outcomes.count { it.isSuccess }).describedAs("%s", outcomes).isEqualTo(1)
+            assertThat(outcomes.single { it.isFailure }.exceptionOrNull()).isInstanceOf(DuplicatePieceName::class.java)
+            val active = jdbc.queryForObject(
+                """SELECT count(*) FROM piece
+                   WHERE student_id = ? AND voided_at IS NULL AND status <> 'FINISHED' AND lower(trim(name)) = 'bowl'""",
+                Int::class.java,
+                student,
+            )
+            assertThat(active).isEqualTo(1)
+            val revertWon = outcomes.first().isSuccess
+            val events = jdbc.queryForObject("SELECT count(*) FROM piece_status_history WHERE piece_id = ?", Int::class.java, finished)
+            assertThat(events).isEqualTo(if (revertWon) 2 else 1)
+        }
+    }
+
+    @Test
     fun `CP20_fiftyGlazedPiecesFinishInUnderThreeSeconds`() {
         val ids = pieces(50, "GLAZED", students = 10)
         val lead = api.lead()

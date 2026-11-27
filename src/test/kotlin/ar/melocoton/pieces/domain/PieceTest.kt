@@ -25,8 +25,12 @@ class PieceTest {
         name: String = "Taza con asa",
     ) = Piece(id = 1, studentId = studentId, name = name, notes = null, status = status, voided = voided)
 
-    private fun change(piece: Piece, target: PieceStatus, expected: PieceStatus = piece.status) =
-        piece.changeTo(expected, target, teacherId, at, operationId)
+    private fun change(
+        piece: Piece,
+        target: PieceStatus,
+        expected: PieceStatus = piece.status,
+        namesInUse: List<PieceName> = emptyList(),
+    ) = piece.changeTo(expected, target, namesInUse, teacherId, at, operationId)
 
     private fun voidedConflict(block: () -> Unit) = assertThatThrownBy(block)
         .isInstanceOfSatisfying(PieceStatusConflict::class.java) {
@@ -143,12 +147,62 @@ class PieceTest {
 
     @Test
     fun `RF28_theEventCarriesStatusesDateUserAndOperation`() {
-        val event = piece(status = IN_PROGRESS).changeTo(IN_PROGRESS, BISQUE_FIRED, teacherId, at, operationId)
+        val event = piece(status = IN_PROGRESS).changeTo(IN_PROGRESS, BISQUE_FIRED, emptyList(), teacherId, at, operationId)
 
         assertThat(event).isEqualTo(
             PieceHistoryEvent(1, PieceEventType.ADVANCED, IN_PROGRESS, BISQUE_FIRED, at, teacherId, operationId),
         )
         assertThat(event.eventType.isCorrection).isFalse()
+    }
+
+    @Test
+    fun `DI91_revertingAFinishedPieceWhoseNameAnotherActivePieceHoldsIsRejectedAndStaysFinished`() {
+        val piece = piece(status = FINISHED, name = "Taza con asa")
+        val names = listOf(
+            PieceName(1, "Taza con asa", FINISHED),
+            PieceName(2, "  taza CON asa ", IN_PROGRESS),
+        )
+
+        assertThatThrownBy { change(piece, GLAZED, namesInUse = names) }.isInstanceOf(DuplicatePieceName::class.java)
+        assertThat(piece.status).isEqualTo(FINISHED)
+    }
+
+    @Test
+    fun `DI91_revertingAFinishedPieceWithAFreeNameWorks`() {
+        val piece = piece(status = FINISHED, name = "Taza con asa")
+        val names = listOf(
+            PieceName(1, "Taza con asa", FINISHED),
+            PieceName(2, "Taza con asa", FINISHED),
+            PieceName(3, "Jarra", IN_PROGRESS),
+        )
+
+        val event = change(piece, GLAZED, namesInUse = names)
+
+        assertThat(event.eventType).isEqualTo(PieceEventType.REVERTED)
+        assertThat(piece.status).isEqualTo(GLAZED)
+    }
+
+    @Test
+    fun `DI91_thePieceOwnNameDoesNotCountAgainstItself`() {
+        val piece = piece(status = FINISHED, name = "Taza con asa")
+        val names = listOf(PieceName(piece.id, "Taza con asa", GLAZED))
+
+        val event = change(piece, GLAZED, namesInUse = names)
+
+        assertThat(event.eventType).isEqualTo(PieceEventType.REVERTED)
+        assertThat(piece.status).isEqualTo(GLAZED)
+    }
+
+    @Test
+    fun `DI91_onlyLeavingFinishedReclaimsTheName`() {
+        assertThat(piece(status = FINISHED).reclaimsNameOn(GLAZED)).isTrue()
+        assertThat(piece(status = GLAZED).reclaimsNameOn(FINISHED)).isFalse()
+        assertThat(piece(status = GLAZED).reclaimsNameOn(BISQUE_FIRED)).isFalse()
+        assertThat(piece(status = IN_PROGRESS).reclaimsNameOn(BISQUE_FIRED)).isFalse()
+
+        val clashing = listOf(PieceName(2, "Taza con asa", IN_PROGRESS))
+        val advanced = change(piece(status = GLAZED, name = "Taza con asa"), FINISHED, namesInUse = clashing)
+        assertThat(advanced.eventType).isEqualTo(PieceEventType.ADVANCED)
     }
 
     // ---- Voiding ----

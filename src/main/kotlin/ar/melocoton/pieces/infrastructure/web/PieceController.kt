@@ -12,6 +12,7 @@ import ar.melocoton.pieces.domain.PieceStatus
 import ar.melocoton.shared.domain.SessionUser
 import ar.melocoton.shared.infrastructure.web.ErrorResponse
 import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.media.Content
 import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -52,20 +53,26 @@ class PieceController(
         operationId = "listPieces",
         summary = "List the pieces of all students, most recently updated first (RF-31, RF-32, DI-71)",
         description = "Pieces of inactive students are included; voided pieces are not (DI-74). " +
-            "studentId and status narrow the list when sent. advanceTo and revertTo are the actions each piece allows (DI-70).",
+            "studentId and status narrow the list when sent. advanceTo and revertTo are the actions each piece allows (DI-70). " +
+            "Paged with a cursor (DI-87): send the nextCursor of a page to get the next one; it is null on the last page.",
     )
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "The pieces"),
         ApiResponse(
             responseCode = "400",
-            description = "validation_error: status is not a piece status",
+            description = "validation_error: status is not a piece status, the cursor is not valid or limit is not between 1 and 100",
             content = [Content(schema = Schema(implementation = ErrorResponse::class))],
         ),
     )
     fun list(
         @RequestParam(required = false) studentId: Long?,
         @RequestParam(required = false) status: PieceStatus?,
-    ): List<PieceItemResponse> = listPieces.list(PieceFilter(studentId, status)).map { it.toResponse() }
+        @Parameter(description = "The nextCursor of the previous page; omit for the first page")
+        @RequestParam(required = false) cursor: String?,
+        @Parameter(schema = Schema(type = "integer", minimum = "1", maximum = "$MAX_PAGE_SIZE", defaultValue = "$DEFAULT_PAGE_SIZE"))
+        @RequestParam(required = false) limit: Int?,
+    ): PiecePageResponse =
+        listPieces.list(PieceFilter(studentId, status), cursor?.toPieceCursor(), limit.toPageSize()).toResponse()
 
     @GetMapping("/{id}")
     @Operation(operationId = "getPiece", summary = "A piece with its history, newest event first (RF-28)")
@@ -155,7 +162,8 @@ class PieceController(
         ),
         ApiResponse(
             responseCode = "409",
-            description = "status_conflict: the piece changed or was voided meanwhile, details is PieceConflictDetails",
+            description = "status_conflict: the piece changed or was voided meanwhile, details is PieceConflictDetails. " +
+                "duplicate_piece_name: reverting a Terminada piece whose name another active piece of the student now uses",
             content = [Content(schema = Schema(implementation = ErrorResponse::class))],
         ),
     )

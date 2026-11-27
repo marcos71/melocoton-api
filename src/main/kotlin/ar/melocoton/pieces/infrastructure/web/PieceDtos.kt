@@ -1,11 +1,14 @@
 package ar.melocoton.pieces.infrastructure.web
 
 import ar.melocoton.pieces.application.BulkChangeResult
+import ar.melocoton.pieces.application.port.PieceCursor
 import ar.melocoton.pieces.application.port.PieceDetail
 import ar.melocoton.pieces.application.port.PieceHistoryEntry
+import ar.melocoton.pieces.application.port.PiecePage
 import ar.melocoton.pieces.application.port.PieceSummary
 import ar.melocoton.pieces.domain.BulkAdvance
 import ar.melocoton.pieces.domain.BulkItem
+import ar.melocoton.pieces.domain.InvalidPiece
 import ar.melocoton.pieces.domain.Piece
 import ar.melocoton.pieces.domain.PieceEventType
 import ar.melocoton.pieces.domain.PieceStatus
@@ -14,39 +17,62 @@ import com.fasterxml.jackson.annotation.JsonAnySetter
 import io.swagger.v3.oas.annotations.media.ArraySchema
 import io.swagger.v3.oas.annotations.media.Schema
 import java.time.Instant
+import java.time.format.DateTimeParseException
+import java.util.Base64
 import java.util.UUID
 
 private const val INSTANT_DESCRIPTION = "ISO-8601 instant in UTC"
+const val DEFAULT_PAGE_SIZE = 50
+const val MAX_PAGE_SIZE = 100
+private const val CURSOR_SEPARATOR = "|"
+private const val INVALID_CURSOR_MESSAGE = "No pudimos cargar mÃ¡s piezas. VolvÃ© a cargar la lista."
+
+/** Opaque cursor for the client: base64url (no padding) of "<instant>|<id>" (DI-87). */
+fun PieceCursor.toToken(): String =
+    Base64.getUrlEncoder().withoutPadding().encodeToString("$updatedAt$CURSOR_SEPARATOR$id".toByteArray())
+
+/** Throws [InvalidPiece] (validation_error) for anything this API did not issue. */
+fun String.toPieceCursor(): PieceCursor = try {
+    val parts = String(Base64.getUrlDecoder().decode(this)).split(CURSOR_SEPARATOR)
+    require(parts.size == 2)
+    val id = parts[1].toLong()
+    require(id > 0)
+    PieceCursor(Instant.parse(parts[0]), id)
+} catch (e: IllegalArgumentException) {
+    throw InvalidPiece(INVALID_CURSOR_MESSAGE)
+} catch (e: DateTimeParseException) {
+    throw InvalidPiece(INVALID_CURSOR_MESSAGE)
+}
+
+/** Null means the default; outside 1..[MAX_PAGE_SIZE] throws [InvalidPiece]. */
+fun Int?.toPageSize(): Int = when {
+    this == null -> DEFAULT_PAGE_SIZE
+    this in 1..MAX_PAGE_SIZE -> this
+    else -> throw InvalidPiece("La cantidad por pÃ¡gina tiene que estar entre 1 y $MAX_PAGE_SIZE.")
+}
 
 /**
- * Body of POST /api/v1/pieces: the teacher creates a piece for a student (CU-12). The text is trimmed here;
- * a blank or too long value is rejected by the domain (PieceText), so POST and PATCH answer the same.
+ * Body of POST /api/v1/pieces: the teacher creates a piece for a student (CU-12). The text is trimmed and
+ * validated by the domain (PieceText), so POST and PATCH answer the same.
  */
 class CreatePieceRequest(
     val studentId: Long,
-    name: String,
-    notes: String? = null,
-) {
     @field:Schema(maxLength = PieceText.NAME_MAX_LENGTH)
-    val name: String = name.trim()
-
+    val name: String,
     @field:Schema(maxLength = PieceText.NOTES_MAX_LENGTH, description = "Blank means no notes")
-    val notes: String? = notes?.trim()
-}
+    val notes: String? = null,
+)
 
 /**
  * Body of PATCH on a piece (RF-27): the name is required and the notes replace the stored value (null or blank
  * clears them, DI-72). Any other field, `status` included, is rejected with 400 instead of being ignored.
  */
 class EditPieceRequest(
-    name: String,
-    notes: String? = null,
-) {
     @field:Schema(maxLength = PieceText.NAME_MAX_LENGTH)
-    val name: String = name.trim()
-
+    val name: String,
     @field:Schema(maxLength = PieceText.NOTES_MAX_LENGTH, description = "Null or blank clears the notes")
-    val notes: String? = notes?.trim()
+    val notes: String? = null,
+) {
 
     /** Jackson calls this for every JSON field the class does not declare; failing here makes it a 400. */
     @JsonAnySetter
@@ -84,10 +110,10 @@ data class BulkChangeResponse(
 )
 
 /** Body of POST /api/v1/pieces/{id}/void (RF-56). */
-class VoidPieceRequest(reason: String) {
+class VoidPieceRequest(
     @field:Schema(maxLength = Piece.VOID_REASON_MAX_LENGTH)
-    val reason: String = reason.trim()
-}
+    val reason: String,
+)
 
 /** Who owns a piece. */
 data class PieceStudentResponse(val id: Long, val name: String)
@@ -136,6 +162,15 @@ data class PieceHistoryEntryResponse(
     val operationId: UUID,
     val changedBy: PieceUserResponse,
 )
+
+/** A page of the teachers' piece list (DI-87). */
+data class PiecePageResponse(
+    val items: List<PieceItemResponse>,
+    @field:Schema(description = "Pass as cursor to get the next page; null on the last page")
+    val nextCursor: String?,
+)
+
+fun PiecePage.toResponse() = PiecePageResponse(items.map { it.toResponse() }, next?.toToken())
 
 fun PieceSummary.toResponse() = PieceItemResponse(
     id = id,

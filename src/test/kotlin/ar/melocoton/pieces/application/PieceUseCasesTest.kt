@@ -4,11 +4,13 @@ import ar.melocoton.pieces.application.port.PieceDetail
 import ar.melocoton.pieces.application.port.PieceQueries
 import ar.melocoton.pieces.application.port.PieceRepository
 import ar.melocoton.pieces.domain.BulkItem
+import ar.melocoton.pieces.domain.DuplicatePieceName
 import ar.melocoton.pieces.domain.Piece
 import ar.melocoton.pieces.domain.PieceConflictDetails
 import ar.melocoton.pieces.domain.PieceConflictReason
 import ar.melocoton.pieces.domain.PieceEventType
 import ar.melocoton.pieces.domain.PieceHistoryEvent
+import ar.melocoton.pieces.domain.PieceName
 import ar.melocoton.pieces.domain.PieceNotEditable
 import ar.melocoton.pieces.domain.PieceNotFound
 import ar.melocoton.pieces.domain.PieceStatus
@@ -24,6 +26,7 @@ import io.mockk.mockk
 import io.mockk.runs
 import io.mockk.slot
 import io.mockk.verify
+import io.mockk.verifyOrder
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
@@ -106,7 +109,7 @@ class PieceUseCasesTest {
         every { pieces.saveStatus(1, PieceStatus.IN_PROGRESS, PieceStatus.BISQUE_FIRED) } returns false
 
         assertThatThrownBy {
-            ChangePieceStatus(pieces, queries, clock).change(1, PieceStatus.IN_PROGRESS, PieceStatus.BISQUE_FIRED, teacherId)
+            ChangePieceStatus(students, pieces, queries, clock).change(1, PieceStatus.IN_PROGRESS, PieceStatus.BISQUE_FIRED, teacherId)
         }.isInstanceOfSatisfying(PieceStatusConflict::class.java) {
             assertThat((it.details as PieceConflictDetails).pieces.single().reason).isEqualTo(PieceConflictReason.VOIDED)
         }
@@ -117,7 +120,7 @@ class PieceUseCasesTest {
     fun `DI74_aPieceAlreadyVoidedWhenLoadedIsNotFoundForEveryAction`() {
         every { pieces.findById(1) } returns piece(voided = true)
 
-        assertThatThrownBy { ChangePieceStatus(pieces, queries, clock).change(1, PieceStatus.IN_PROGRESS, PieceStatus.BISQUE_FIRED, teacherId) }
+        assertThatThrownBy { ChangePieceStatus(students, pieces, queries, clock).change(1, PieceStatus.IN_PROGRESS, PieceStatus.BISQUE_FIRED, teacherId) }
             .isInstanceOf(PieceNotFound::class.java)
         assertThatThrownBy { VoidPiece(pieces, clock).voidPiece(1, "Rota", teacherId) }.isInstanceOf(PieceNotFound::class.java)
         assertThatThrownBy { EditPiece(students, pieces, queries).edit(1, "Jarra", null) }.isInstanceOf(PieceNotFound::class.java)
@@ -134,10 +137,29 @@ class PieceUseCasesTest {
         val events = slot<List<PieceHistoryEvent>>()
         every { pieces.appendHistory(capture(events)) } just runs
 
-        ChangePieceStatus(pieces, queries, clock).change(1, PieceStatus.GLAZED, PieceStatus.BISQUE_FIRED, teacherId)
+        ChangePieceStatus(students, pieces, queries, clock).change(1, PieceStatus.GLAZED, PieceStatus.BISQUE_FIRED, teacherId)
 
         assertThat(events.captured.single().eventType).isEqualTo(PieceEventType.REVERTED)
         assertThat(events.captured.single().userId).isEqualTo(teacherId)
+        verify(exactly = 0) { students.lockById(any()); pieces.namesInUse(any()) }
+    }
+
+    @Test
+    fun `DI91_revertingAFinishedPieceWhoseNameIsTakenWritesNoHistoryAndSavesNothing`() {
+        val finished = piece(status = PieceStatus.FINISHED)
+        every { pieces.findById(1) } returns finished
+        every { students.lockById(studentId) } returns student()
+        every { pieces.namesInUse(studentId) } returns listOf(
+            PieceName(finished.id, "Taza", PieceStatus.FINISHED),
+            PieceName(2, "taza", PieceStatus.IN_PROGRESS),
+        )
+
+        assertThatThrownBy {
+            ChangePieceStatus(students, pieces, queries, clock).change(1, PieceStatus.FINISHED, PieceStatus.GLAZED, teacherId)
+        }.isInstanceOf(DuplicatePieceName::class.java)
+
+        verify(exactly = 0) { pieces.saveStatus(any(), any(), any()); pieces.appendHistory(any()) }
+        verifyOrder { students.lockById(studentId); pieces.namesInUse(studentId) }
     }
 
     // ---- EditPiece ----

@@ -1,17 +1,21 @@
 package ar.melocoton.pieces.infrastructure.persistence
 
+import ar.melocoton.pieces.application.port.PieceCursor
 import ar.melocoton.pieces.application.port.PieceDetail
 import ar.melocoton.pieces.application.port.PieceHistoryEntry
+import ar.melocoton.pieces.application.port.PiecePage
 import ar.melocoton.pieces.application.port.PieceQueries
 import ar.melocoton.pieces.application.port.PieceSummary
 import ar.melocoton.pieces.domain.PieceEventType
 import ar.melocoton.pieces.domain.PieceFilter
 import ar.melocoton.pieces.domain.PieceStatus
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.jdbc.core.RowMapper
 import org.springframework.stereotype.Repository
 import java.sql.ResultSet
 import java.time.Instant
 import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import java.util.UUID
 
 /**
@@ -22,7 +26,7 @@ import java.util.UUID
 @Repository
 class PieceQueriesJdbc(private val jdbc: JdbcTemplate) : PieceQueries {
 
-    override fun findAll(filter: PieceFilter): List<PieceSummary> {
+    override fun findPage(filter: PieceFilter, after: PieceCursor?, limit: Int): PiecePage {
         val conditions = mutableListOf("p.voided_at IS NULL")
         val args = mutableListOf<Any>()
         filter.studentId?.let {
@@ -33,28 +37,32 @@ class PieceQueriesJdbc(private val jdbc: JdbcTemplate) : PieceQueries {
             conditions += "p.status = ?"
             args += it.name
         }
-        return jdbc.query(
-            """SELECT p.id, p.student_id, u.name AS student_name, p.name, p.status, $UPDATED_AT AS updated_at
-               FROM piece p JOIN app_user u ON u.id = p.student_id
-               WHERE ${conditions.joinToString(" AND ")}
-               ORDER BY updated_at DESC, p.id DESC""",
-            { rs, _ ->
-                PieceSummary(
-                    id = rs.getLong("id"),
-                    studentId = rs.getLong("student_id"),
-                    studentName = rs.getString("student_name"),
-                    name = rs.getString("name"),
-                    status = PieceStatus.valueOf(rs.getString("status")),
-                    updatedAt = rs.instant("updated_at"),
-                )
-            },
+        // The keyset predicate is outside the derived table because updated_at is computed there.
+        val afterCondition = after?.let {
+            args += OffsetDateTime.ofInstant(it.updatedAt, ZoneOffset.UTC)
+            args += it.id
+            "WHERE (x.updated_at, x.id) < (?, ?)"
+        }.orEmpty()
+        args += limit + 1
+        val rows = jdbc.query(
+            """SELECT * FROM (
+                   SELECT p.id, p.student_id, u.name AS student_name, p.name, p.status, $UPDATED_AT AS updated_at
+                   FROM piece p JOIN app_user u ON u.id = p.student_id
+                   WHERE ${conditions.joinToString(" AND ")}
+               ) x
+               $afterCondition
+               ORDER BY x.updated_at DESC, x.id DESC
+               LIMIT ?""",
+            summaryMapper,
             *args.toTypedArray(),
         )
+        val items = rows.take(limit)
+        val next = items.lastOrNull()?.takeIf { rows.size > limit }?.let { PieceCursor(it.updatedAt, it.id) }
+        return PiecePage(items, next)
     }
 
     override fun findDetail(id: Long): PieceDetail? {
-        val history = findHistory(id)
-        return jdbc.query(
+        val piece = jdbc.query(
             """SELECT p.id, p.student_id, u.name AS student_name, p.name, p.notes, p.status, p.created_at,
                       $UPDATED_AT AS updated_at
                FROM piece p JOIN app_user u ON u.id = p.student_id
@@ -69,11 +77,12 @@ class PieceQueriesJdbc(private val jdbc: JdbcTemplate) : PieceQueries {
                     status = PieceStatus.valueOf(rs.getString("status")),
                     createdAt = rs.instant("created_at"),
                     updatedAt = rs.instant("updated_at"),
-                    history = history,
+                    history = emptyList(),
                 )
             },
             id,
         ).singleOrNull()
+        return piece?.copy(history = findHistory(id))
     }
 
     private fun findHistory(pieceId: Long): List<PieceHistoryEntry> = jdbc.query(
@@ -94,6 +103,17 @@ class PieceQueriesJdbc(private val jdbc: JdbcTemplate) : PieceQueries {
         },
         pieceId,
     )
+
+    private val summaryMapper = RowMapper { rs, _ ->
+        PieceSummary(
+            id = rs.getLong("id"),
+            studentId = rs.getLong("student_id"),
+            studentName = rs.getString("student_name"),
+            name = rs.getString("name"),
+            status = PieceStatus.valueOf(rs.getString("status")),
+            updatedAt = rs.instant("updated_at"),
+        )
+    }
 
     private companion object {
         const val UPDATED_AT = "COALESCE((SELECT max(h.occurred_at) FROM piece_status_history h WHERE h.piece_id = p.id), p.created_at)"

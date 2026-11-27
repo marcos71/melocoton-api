@@ -18,6 +18,12 @@ data class PieceSummary(
     val revertTo: PieceStatus? get() = status.previous()
 }
 
+/** Position in a piece list: the updatedAt and id of the last item seen (DI-87). */
+data class PieceCursor(val updatedAt: Instant, val id: Long)
+
+/** One page of a piece list; [next] is null on the last page (DI-87). */
+data class PiecePage(val items: List<PieceSummary>, val next: PieceCursor?)
+
 /** A piece with its history, newest event first (RF-28). */
 data class PieceDetail(
     val id: Long,
